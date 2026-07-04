@@ -67,7 +67,7 @@ class WordPressAdapter(Adapter):
     """Standard WordPress wp/v2 REST adapter shared by all four WP sources."""
 
     PER_PAGE = 100
-    MAX_PAGES = 50  # safety cap to avoid WordPress deep-pagination errors
+    MAX_PAGES = 3  # Reduced to 3 to prevent 60-second cloud serverless timeout
 
     def __init__(self, source: str, base: str, type: str, category: int):
         self.source = source

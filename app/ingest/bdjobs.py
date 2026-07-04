@@ -49,7 +49,7 @@ class BDJobsAdapter(Adapter):
 
     source = "bdjobs"
     RPP = 100
-    MAX_PAGES = 20
+    MAX_PAGES = 2
 
     async def fetch(self, since: datetime | None) -> list[Normalized]:
         results: list[Normalized] = []
