@@ -14,7 +14,7 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────
 interface Run { id: number; source: string; status: string; started_at: string; fetched: number; created: number; updated: number; }
 interface Opp { id: number; title: string; type: string; organization: string | null; location: string | null; country: string | null; deadline: string | null; posted_at: string | null; url: string; is_active: boolean; source: string; }
-interface Stats { total: number; active: number; by_type: Record<string, number>; }
+interface Stats { total: number; active: number; by_type: Record<string, number>; sources?: { source: string }[]; }
 
 // ── Tab component ──────────────────────────────────────────────────────
 function Tab({ label, active, onClick, icon: Icon }: { label: string; active: boolean; onClick: () => void; icon: any }) {
