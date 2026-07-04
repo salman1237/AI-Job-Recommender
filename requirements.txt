@@ -1,0 +1,14 @@
+fastapi[standard]
+uvicorn[standard]
+sqlalchemy[asyncio]>=2.0
+asyncpg
+alembic
+pydantic>=2
+pydantic-settings
+httpx
+apscheduler
+python-dateutil
+python-jose[cryptography]
+argon2-cffi
+python-multipart
+PyPDF2

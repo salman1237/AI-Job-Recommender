@@ -1,0 +1,153 @@
+# =============================================================================
+# Campus365 Opportunity & Job Aggregator — .gitignore
+# Project: FastAPI + PostgreSQL + Alembic + Python
+# =============================================================================
+
+# =============================================================================
+# SECRETS & ENVIRONMENT — never commit these
+# =============================================================================
+.env
+.env.*
+!.env.example          # allow a safe template with no real values
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Byte-compiled / optimised / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+lib/
+lib64/
+.eggs/
+wheels/
+*.whl
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.pytest_tmp/
+nosetests.xml
+test-results/
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+.ruff_cache/
+
+# =============================================================================
+# FASTAPI / UVICORN
+# =============================================================================
+*.log
+uvicorn.log
+access.log
+error.log
+
+# =============================================================================
+# DATABASE
+# =============================================================================
+# SQLite (if ever used locally for quick tests)
+*.db
+*.sqlite
+*.sqlite3
+
+# PostgreSQL dump files
+*.sql.gz
+*.dump
+
+# =============================================================================
+# ALEMBIC
+# =============================================================================
+# Do NOT ignore alembic/versions/ — migration files must be committed
+# Only ignore generated caches inside alembic
+alembic/__pycache__/
+alembic/versions/__pycache__/
+
+# =============================================================================
+# DOCUMENTATION FILES (optional — remove these lines if you want them in git)
+# =============================================================================
+# These are local planning/reference docs, not part of the deployable codebase
+Opportunity_Aggregator_Workflow.docx
+Opportunity_Aggregator_Workflow.pdf
+api_details.md
+fastAPI.md
+implementation_plan.md
+task.md
+
+# =============================================================================
+# EDITOR & IDE
+# =============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains (PyCharm, etc.)
+.idea/
+*.iml
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# =============================================================================
+# OS FILES
+# =============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+
+# =============================================================================
+# AI / TOOLING
+# =============================================================================
+# Claude AI local config (not needed in repo)
+.claude/
+
+# =============================================================================
+# FRONTEND (empty for now — add entries here when frontend is built)
+# =============================================================================
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.env.local

@@ -1,0 +1,9 @@
+frontend/
+.venv/
+DB_Backup.sql
+node_modules/
+.next/
+*.db
+*.sqlite3
+__pycache__/
+.env
