@@ -136,11 +136,19 @@ RESUME TEXT:
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=502, detail=f"Gemini error: {e.response.text[:300]}")
 
-    raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    
+    # Clean up markdown code blocks if Gemini returns them
+    if raw_text.startswith("```"):
+        raw_text = raw_text.split("\n", 1)[-1]
+    if raw_text.endswith("```"):
+        raw_text = raw_text.rsplit("\n", 1)[0]
+    raw_text = raw_text.strip()
+        
     try:
         parsed_cv = json.loads(raw_text)
     except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail="Gemini returned invalid JSON")
+        raise HTTPException(status_code=502, detail=f"Gemini returned invalid JSON: {raw_text[:200]}")
 
     # 4. Save parsed CV to DB
     user = await session.get(User, current_user.id)

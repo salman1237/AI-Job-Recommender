@@ -186,11 +186,18 @@ Return ONLY a valid JSON array:
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Gemini connection error: {e}")
 
-    raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    
+    if raw_text.startswith("```"):
+        raw_text = raw_text.split("\n", 1)[-1]
+    if raw_text.endswith("```"):
+        raw_text = raw_text.rsplit("\n", 1)[0]
+    raw_text = raw_text.strip()
+    
     try:
         scores: list[dict] = json.loads(raw_text)
     except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail="Gemini returned non-JSON output")
+        raise HTTPException(status_code=502, detail=f"Gemini returned non-JSON output: {raw_text[:200]}")
 
     # --- Step 4: Merge rows with Gemini scores ---
     score_map = {item["id"]: item for item in scores}
@@ -321,12 +328,18 @@ Return ONLY a valid JSON array (no markdown, no explanation) in this exact forma
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Gemini API connection error: {str(e)}")
 
-    raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
+    if raw_text.startswith("```"):
+        raw_text = raw_text.split("\n", 1)[-1]
+    if raw_text.endswith("```"):
+        raw_text = raw_text.rsplit("\n", 1)[0]
+    raw_text = raw_text.strip()
+    
     try:
         scores: list[dict] = json.loads(raw_text)
     except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail="Gemini returned non-JSON output.")
+        raise HTTPException(status_code=502, detail=f"Gemini returned non-JSON output: {raw_text[:200]}")
 
     # --- Step 4: Merge scores with DB rows and sort ---
     score_map = {item["id"]: item for item in scores}
