@@ -170,8 +170,11 @@ Return ONLY a valid JSON array:
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             gemini_resp = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-                headers={"X-goog-api-key": settings.gemini_api_key, "Content-Type": "application/json"},
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+                headers={
+                    "X-goog-api-key": settings.gemini_api_key, 
+                    "Content-Type": "application/json"
+                },
                 json={
                     "contents": [{"parts": [{"text": gemini_prompt}]}],
                     "generationConfig": {"response_mime_type": "application/json"},
@@ -295,8 +298,8 @@ OPPORTUNITIES (list of objects with id, title, type, description, tags):
 Return ONLY a valid JSON array (no markdown, no explanation) in this exact format:
 [{{"id": <opportunity_id>, "match_score": <integer 0-100>, "match_reason": "<one concise sentence why>"}}]"""
 
-    # --- Step 3: Call Gemini 2.5 Flash asynchronously ---
-    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    # --- Step 3: Call Gemini ---
+    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
     payload = {
         "contents": [{"parts": [{"text": gemini_prompt}]}],
         "generationConfig": {"response_mime_type": "application/json"},

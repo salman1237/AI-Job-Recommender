@@ -122,7 +122,7 @@ RESUME TEXT:
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
                 headers={
                     "X-goog-api-key": settings.gemini_api_key,
                     "Content-Type": "application/json",
