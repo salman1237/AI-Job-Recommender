@@ -41,8 +41,8 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="glass"
-        style={{ width: "100%", maxWidth: 420, padding: "2.5rem" }}
+        className="glass auth-card-padding"
+        style={{ width: "100%", maxWidth: 420 }}
       >
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>

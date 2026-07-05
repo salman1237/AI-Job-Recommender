@@ -123,18 +123,18 @@ export default function AdminDashboard() {
   return (
     <>
       <Navbar />
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
+      <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
 
         {/* Page header */}
         <div style={{ marginBottom: "1.75rem" }}>
-          <h1 style={{ fontSize: "2rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
+          <h1 className="page-h1" style={{ fontSize: "2rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
             <Database style={{ color: "#7c6aff" }} size={26} /> Admin Dashboard
           </h1>
           <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>Manage ingestion, browse and filter all opportunities.</p>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 8, marginBottom: "1.75rem" }}>
+        <div className="tabs-row" style={{ display: "flex", gap: 8, marginBottom: "1.75rem", flexWrap: "wrap" }}>
           <Tab label="Overview" icon={BarChart2} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
           <Tab label="All Opportunities" icon={Briefcase} active={activeTab === "jobs"} onClick={() => setActiveTab("jobs")} />
           <Tab label="Ingestion" icon={Play} active={activeTab === "ingest"} onClick={() => setActiveTab("ingest")} />
@@ -237,7 +237,7 @@ export default function AdminDashboard() {
             {/* Table */}
             <div className="glass" style={{ overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 800 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.02)" }}>
                       {["Type", "Title", "Organisation", "Location", "Deadline", "Source", "Status", ""].map(h => (
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
                     <ChevronLeft size={16} /> Prev
                   </button>
 
-                  <div style={{ display: "flex", gap: 4 }}>
+                  <div className="pagination-numbers" style={{ display: "flex", gap: 4 }}>
                     {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
                       let p: number;
                       if (totalPages <= 7) p = i + 1;

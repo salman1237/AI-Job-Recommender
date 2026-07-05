@@ -100,12 +100,12 @@ export default function OpportunitiesPage() {
   return (
     <>
       <Navbar />
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
+      <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
         
         {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem" }}>
+        <div className="page-header-row" style={{ marginBottom: "1.5rem" }}>
           <div>
-            <h1 style={{ fontSize: "2.2rem", fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 10 }}>
+            <h1 className="page-h1" style={{ fontSize: "2.2rem", fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 10 }}>
               For You <Sparkles size={24} style={{ color: "#7c6aff" }} />
             </h1>
             <p style={{ color: "var(--text-secondary)", marginTop: 4, fontSize: "0.9rem" }}>
@@ -122,7 +122,7 @@ export default function OpportunitiesPage() {
           <button
             onClick={() => fetchRecommended(true)}
             disabled={refreshing}
-            className="btn-primary"
+            className="btn-primary btn-full-mobile"
             style={{ display: "flex", alignItems: "center", gap: 8 }}
           >
             {refreshing ? <Loader2 size={16} className="spinner" /> : <RefreshCw size={16} />}
@@ -231,7 +231,7 @@ export default function OpportunitiesPage() {
           </div>
         ) : (
           <AnimatePresence mode="popLayout">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1.25rem" }}>
+            <div className="opp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))", gap: "1.25rem" }}>
               {filtered.map((opp, idx) => {
                 const isExpired = opp.deadline && new Date(opp.deadline) < today;
                 const scoreHigh = opp.match_score >= 80;

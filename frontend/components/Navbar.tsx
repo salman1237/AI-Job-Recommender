@@ -1,8 +1,9 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Briefcase, LayoutDashboard, User, LogOut, Zap } from "lucide-react";
+import { Briefcase, LayoutDashboard, User, LogOut, Zap, Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/opportunities", label: "Opportunities", icon: Briefcase },
@@ -12,6 +13,14 @@ const navLinks = [
 export default function Navbar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const closeDrawer = () => setDrawerOpen(false);
+
+  const allLinks = [
+    ...navLinks,
+    ...(user?.role === "admin" ? [{ href: "/admin", label: "Admin", icon: LayoutDashboard }] : []),
+  ];
 
   return (
     <nav
@@ -22,20 +31,22 @@ export default function Navbar() {
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 1.5rem", display: "flex", alignItems: "center", height: 64 }}>
+      {/* ── Main bar ── */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 1.25rem", display: "flex", alignItems: "center", height: 64, gap: 12 }}>
+        
         {/* Logo */}
-        <Link href="/opportunities" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+        <Link href="/opportunities" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flexShrink: 0 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#7c6aff,#00d4ff)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Zap size={18} color="#fff" />
           </div>
-          <span style={{ fontWeight: 800, fontSize: "1.1rem", background: "linear-gradient(135deg,#7c6aff,#00d4ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <span style={{ fontWeight: 800, fontSize: "1.05rem", background: "linear-gradient(135deg,#7c6aff,#00d4ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Opportunity Finder
           </span>
         </Link>
 
-        {/* Nav Links */}
-        <div style={{ display: "flex", gap: 4, marginLeft: "2.5rem", flex: 1 }}>
-          {navLinks.map(({ href, label, icon: Icon }) => {
+        {/* Desktop Nav Links */}
+        <div className="nav-links-desktop" style={{ display: "flex", gap: 4, marginLeft: "1.5rem", flex: 1 }}>
+          {allLinks.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
             return (
               <Link key={href} href={href} style={{
@@ -51,33 +62,61 @@ export default function Navbar() {
               </Link>
             );
           })}
-          {user?.role === "admin" && (
-            <Link href="/admin" style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "6px 14px", borderRadius: 8, fontSize: "0.875rem", fontWeight: 500,
-              textDecoration: "none",
-              color: pathname.startsWith("/admin") ? "#fff" : "var(--text-secondary)",
-              background: pathname.startsWith("/admin") ? "rgba(124,106,255,0.15)" : "transparent",
-              transition: "all 0.15s",
-            }}>
-              <LayoutDashboard size={15} />
-              Admin
-            </Link>
-          )}
         </div>
 
-        {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Spacer (mobile) */}
+        <div style={{ flex: 1 }} />
+
+        {/* Desktop Right side */}
+        <div className="nav-email-desktop" style={{ display: "flex", alignItems: "center" }}>
           {user && (
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginRight: 12 }}>
               {user.email}
             </span>
           )}
-          <button onClick={logout} className="btn-ghost" style={{ padding: "6px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem" }}>
-            <LogOut size={14} />
-            Logout
-          </button>
         </div>
+        <button onClick={logout} className="btn-ghost nav-logout-desktop" style={{ padding: "6px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem" }}>
+          <LogOut size={14} />
+          Logout
+        </button>
+
+        {/* Hamburger (mobile only) */}
+        <button
+          className="mobile-hamburger"
+          onClick={() => setDrawerOpen(o => !o)}
+          aria-label={drawerOpen ? "Close menu" : "Open menu"}
+        >
+          {drawerOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+
+      {/* ── Mobile Drawer ── */}
+      <div className={`mobile-drawer${drawerOpen ? " open" : ""}`}>
+        {allLinks.map(({ href, label, icon: Icon }) => {
+          const active = pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={active ? "active" : ""}
+              onClick={closeDrawer}
+            >
+              <Icon size={16} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <div className="mobile-drawer-divider" />
+
+        {user && (
+          <p className="mobile-drawer-user">{user.email}</p>
+        )}
+
+        <button className="drawer-logout" onClick={() => { logout(); closeDrawer(); }}>
+          <LogOut size={15} />
+          Logout
+        </button>
       </div>
     </nav>
   );

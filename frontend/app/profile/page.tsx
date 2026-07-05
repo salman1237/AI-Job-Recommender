@@ -53,10 +53,11 @@ export default function ProfilePage() {
   return (
     <>
       <Navbar />
-      <main style={{ maxWidth: 1000, margin: "0 auto", padding: "2rem 1.5rem" }}>
+      <main className="main-pad" style={{ maxWidth: 1000, margin: "0 auto", padding: "2rem 1.5rem" }}>
         
         {/* Header Section */}
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass" style={{ padding: "2rem", display: "flex", gap: "2rem", alignItems: "center", marginBottom: "2rem" }}>
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="glass" style={{ padding: "2rem", marginBottom: "2rem" }}>
+          <div className="profile-header" style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
           
           <div style={{ position: "relative" }}>
             <div style={{ width: 100, height: 100, borderRadius: "50%", background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: "2px solid var(--border)" }}>
@@ -77,17 +78,18 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <h1 style={{ fontSize: "2rem", fontWeight: 700, margin: 0 }}>{user.full_name || "Welcome!"}</h1>
+            <h1 className="page-h1" style={{ fontSize: "2rem", fontWeight: 700, margin: 0 }}>{user.full_name || "Welcome!"}</h1>
             <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>{user.email}</p>
             <div style={{ display: "inline-block", marginTop: 8, padding: "4px 12px", background: "rgba(124,106,255,0.1)", color: "var(--accent)", borderRadius: 999, fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase" }}>
               {user.role}
             </div>
           </div>
+          </div>
         </motion.div>
 
         {/* CV Upload Section */}
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass" style={{ padding: "2rem", marginBottom: "2rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div className="page-header-row" style={{ alignItems: "flex-start" }}>
             <div>
               <h2 style={{ fontSize: "1.25rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
                 <FileText size={20} className="gradient-text" /> AI Resume Profile
@@ -96,7 +98,7 @@ export default function ProfilePage() {
                 Upload your latest PDF CV. Our Gemini AI will parse your skills, education, and projects to automatically match you with the best opportunities.
               </p>
             </div>
-            <button onClick={() => cvRef.current?.click()} disabled={uploadingCV} className="btn-primary" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => cvRef.current?.click()} disabled={uploadingCV} className="btn-primary btn-full-mobile" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               {uploadingCV ? <Loader2 size={16} className="spinner" /> : <Upload size={16} />}
               Upload PDF CV
             </button>
@@ -105,7 +107,7 @@ export default function ProfilePage() {
 
           {cv && (
             <div style={{ marginTop: "2rem", paddingTop: "2rem", borderTop: "1px solid var(--border)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
+              <div className="grid-1col-mobile" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
                 
                 <div>
                   <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem", color: "var(--text-secondary)" }}>Extracted Skills</h3>

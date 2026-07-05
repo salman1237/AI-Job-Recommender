@@ -38,8 +38,8 @@ export default function RegisterPage() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="glass"
-        style={{ width: "100%", maxWidth: 420, padding: "2.5rem" }}
+        className="glass auth-card-padding"
+        style={{ width: "100%", maxWidth: 420 }}
       >
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg,#00d4ff,#7c6aff)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem" }}>
