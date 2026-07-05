@@ -85,11 +85,8 @@ async def upload_cv(
     if file.content_type not in ALLOWED_CV_TYPES:
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
 
-    # 1. Save file
-    filename = f"cv_user_{current_user.id}.pdf"
-    dest = CVS_DIR / filename
+    # 1. Read file into memory (no longer saving to disk)
     content = await file.read()
-    dest.write_bytes(content)
 
     # 2. Extract text with PyPDF2
     try:
