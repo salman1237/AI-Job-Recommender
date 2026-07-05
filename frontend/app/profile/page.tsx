@@ -3,10 +3,26 @@ import { useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { uploadAvatar, uploadCV } from "@/lib/api";
 import Navbar from "@/components/Navbar";
+import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { User, Upload, FileText, CheckCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
+
+const CV_STEPS: LoadingStep[] = [
+  { label: "Uploading your PDF…",            duration: 2000 },
+  { label: "Extracting text content…",       duration: 3500 },
+  { label: "Gemini AI reading your CV…",     duration: 6000 },
+  { label: "Identifying skills & keywords…", duration: 2500 },
+  { label: "Building your AI profile…",      duration: 1500 },
+];
+
+const CV_TIPS = [
+  "A focused 1–2 page CV gives Gemini AI the clearest signal about your strengths.",
+  "Include project descriptions — Gemini matches based on context, not just skill names.",
+  "Listing certifications and tools improves your match rate for technical opportunities.",
+  "After parsing, head to Opportunities to see your AI-ranked matches!",
+];
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -88,24 +104,39 @@ export default function ProfilePage() {
         </motion.div>
 
         {/* CV Upload Section */}
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass" style={{ padding: "2rem", marginBottom: "2rem" }}>
-          <div className="page-header-row" style={{ alignItems: "flex-start" }}>
-            <div>
-              <h2 style={{ fontSize: "1.25rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                <FileText size={20} className="gradient-text" /> AI Resume Profile
-              </h2>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: 4, maxWidth: 600 }}>
-                Upload your latest PDF CV. Our Gemini AI will parse your skills, education, and projects to automatically match you with the best opportunities.
-              </p>
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass" style={{ marginBottom: "2rem", overflow: "hidden" }}>
+          {/* CV Card Header */}
+          <div style={{ padding: "2rem", paddingBottom: uploadingCV ? "1rem" : "2rem" }}>
+            <div className="page-header-row" style={{ alignItems: "flex-start" }}>
+              <div>
+                <h2 style={{ fontSize: "1.25rem", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                  <FileText size={20} className="gradient-text" /> AI Resume Profile
+                </h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: 4, maxWidth: 600 }}>
+                  Upload your latest PDF CV. Our Gemini AI will parse your skills, education, and projects to automatically match you with the best opportunities.
+                </p>
+              </div>
+              <button
+                onClick={() => cvRef.current?.click()}
+                disabled={uploadingCV}
+                className="btn-primary btn-full-mobile"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, opacity: uploadingCV ? 0.6 : 1 }}
+              >
+                {uploadingCV ? <Loader2 size={16} className="spinner" /> : <Upload size={16} />}
+                {uploadingCV ? "Parsing…" : "Upload PDF CV"}
+              </button>
+              <input type="file" hidden ref={cvRef} accept="application/pdf" onChange={handleCV} />
             </div>
-            <button onClick={() => cvRef.current?.click()} disabled={uploadingCV} className="btn-primary btn-full-mobile" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {uploadingCV ? <Loader2 size={16} className="spinner" /> : <Upload size={16} />}
-              Upload PDF CV
-            </button>
-            <input type="file" hidden ref={cvRef} accept="application/pdf" onChange={handleCV} />
           </div>
 
-          {cv && (
+          {/* Inline AI loading state during CV parsing */}
+          {uploadingCV && (
+            <div style={{ borderTop: "1px solid var(--border)" }}>
+              <AILoadingState steps={CV_STEPS} tips={CV_TIPS} compact />
+            </div>
+          )}
+
+          {cv && !uploadingCV && (
             <div style={{ marginTop: "2rem", paddingTop: "2rem", borderTop: "1px solid var(--border)" }}>
               <div className="grid-1col-mobile" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
                 

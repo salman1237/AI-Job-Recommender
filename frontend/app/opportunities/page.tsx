@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from "react";
 import { getRecommended, getOpportunityTypes } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
+import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
+import SkeletonCard from "@/components/SkeletonCard";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, MapPin, Building, Calendar, ArrowUpRight,
@@ -10,6 +12,22 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+
+const RANKING_STEPS: LoadingStep[] = [
+  { label: "Fetching latest opportunities…",   duration: 1500 },
+  { label: "Reading your CV profile…",          duration: 3000 },
+  { label: "Scoring each match with Gemini AI…", duration: 7000 },
+  { label: "Sorting by best fit…",              duration: 2000 },
+  { label: "Almost ready!",                     duration: 1500 },
+];
+
+const RANKING_TIPS = [
+  "A match score above 80% means you're a strong fit — don't hesitate to apply!",
+  "Gemini AI reads your full CV, not just keywords. Projects and descriptions matter.",
+  "Scores refresh each time you click 'Refresh with AI' for the latest rankings.",
+  "Opportunities with a deadline soon are shown first within each score tier.",
+  "Uploading an updated CV gives you fresher, more accurate match scores.",
+];
 
 export default function OpportunitiesPage() {
   const { user } = useAuth();
@@ -212,6 +230,37 @@ export default function OpportunitiesPage() {
           </motion.div>
         )}
 
+        {/* Re-ranking banner (shown over existing cards) */}
+        <AnimatePresence>
+          {refreshing && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="glass"
+              style={{
+                marginBottom: "1.25rem",
+                padding: "1rem 1.5rem",
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                borderColor: "rgba(124,106,255,0.3)",
+                background: "rgba(124,106,255,0.07)",
+              }}
+            >
+              <Loader2 size={18} className="spinner" style={{ color: "#7c6aff", flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Gemini AI is re-ranking your matches…
+                </p>
+                <div className="progress-bar-track" style={{ marginTop: 8 }}>
+                  <div className="progress-bar-fill" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* States */}
         {!user?.parsed_cv ? (
           <div className="glass" style={{ padding: "4rem 2rem", textAlign: "center" }}>
@@ -224,10 +273,23 @@ export default function OpportunitiesPage() {
             </Link>
           </div>
         ) : loading ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "5rem 0", color: "var(--text-secondary)" }}>
-            <Loader2 size={44} className="spinner" style={{ marginBottom: "1.5rem", color: "#7c6aff" }} />
-            <p style={{ fontSize: "1rem", fontWeight: 500 }} className="animate-shimmer">Gemini AI is ranking opportunities for you...</p>
-            <p style={{ fontSize: "0.82rem", marginTop: 8, color: "var(--text-secondary)" }}>This may take 5–15 seconds</p>
+          <div>
+            {/* Skeleton card grid */}
+            <div className="opp-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(340px, 100%), 1fr))", gap: "1.25rem", marginBottom: "1.5rem" }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+            {/* AI progress panel */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="glass"
+              style={{ maxWidth: 520, margin: "0 auto" }}
+            >
+              <AILoadingState steps={RANKING_STEPS} tips={RANKING_TIPS} />
+            </motion.div>
           </div>
         ) : (
           <AnimatePresence mode="popLayout">
