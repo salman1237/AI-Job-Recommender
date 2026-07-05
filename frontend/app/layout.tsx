@@ -6,6 +6,11 @@ import "@/app/globals.css";
 export const metadata: Metadata = {
   title: "Opportunity Finder",
   description: "AI-powered opportunity discovery & career matching platform",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

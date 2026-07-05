@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Briefcase, LayoutDashboard, User, LogOut, Zap, Menu, X } from "lucide-react";
+import { Briefcase, LayoutDashboard, User, LogOut, Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/opportunities", label: "Opportunities", icon: Briefcase },
@@ -36,9 +37,14 @@ export default function Navbar() {
         
         {/* Logo */}
         <Link href="/opportunities" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flexShrink: 0 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#7c6aff,#00d4ff)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Zap size={18} color="#fff" />
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Opportunity Finder"
+            width={36}
+            height={36}
+            style={{ objectFit: "contain", borderRadius: 8 }}
+            priority
+          />
           <span style={{ fontWeight: 800, fontSize: "1.05rem", background: "linear-gradient(135deg,#7c6aff,#00d4ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Opportunity Finder
           </span>
