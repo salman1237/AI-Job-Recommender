@@ -53,7 +53,7 @@ export const uploadCV = (file: File) => {
 
 // ── Opportunities ──────────────────────────────────────────────────────
 export const getRecommended = (refresh = false) =>
-  api.get("/opportunities/recommended", { params: { top_n: 100, refresh } });
+  api.get("/opportunities/recommended", { params: { top_n: 30, refresh } });
 
 export const getOpportunityTypes = () =>
   api.get("/opportunities/types");

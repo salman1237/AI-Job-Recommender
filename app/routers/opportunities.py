@@ -87,7 +87,7 @@ async def get_opportunity_types(session: AsyncSession = Depends(get_session)):
 
 @router.get("/opportunities/recommended", response_model=RerankedList)
 async def get_recommended_opportunities(
-    top_n: int = Query(100, ge=1, le=100, description="Top N from DB to send to AI (max 100)"),
+    top_n: int = Query(30, ge=1, le=100, description="Top N from DB to send to AI (max 100)"),
     refresh: bool = Query(False, description="Force a fresh Gemini call, ignoring cache"),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
