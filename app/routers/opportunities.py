@@ -123,17 +123,25 @@ async def get_recommended_opportunities(
         Opportunity.search_tsv.op("@@")(func.plainto_tsquery("simple", kw))
         for kw in keywords
     ]
+    
+    combined_keywords = " OR ".join([f'"{kw}"' for kw in keywords])
+    ts_query = func.websearch_to_tsquery("simple", combined_keywords)
+    rank_col = func.ts_rank(Opportunity.search_tsv, ts_query).label("rank")
+
     stmt = (
-        select(Opportunity)
+        select(Opportunity, rank_col)
         .where(Opportunity.is_active.is_(True))
         .where(or_(*keyword_filters))
-        .order_by(Opportunity.posted_at.desc().nullslast())
+        .order_by(rank_col.desc(), Opportunity.posted_at.desc().nullslast())
         .limit(top_n)
     )
-    rows = (await session.scalars(stmt)).all()
+    db_rows = (await session.execute(stmt)).all()
 
-    if not rows:
+    if not db_rows:
         return RerankedList(total=0, items=[], cached=False)
+        
+    rows = [r[0] for r in db_rows]
+    ranks = {r[0].id: r[1] for r in db_rows}
 
     # --- Step 2: Build Gemini prompt ---
     candidate_summary = (
@@ -167,6 +175,8 @@ Return ONLY a valid JSON array:
 [{{"id": <opportunity_id>, "match_score": <integer 0-100>, "match_reason": "<one concise sentence>"}}]"""
 
     # --- Step 3: Call Gemini ---
+    fallback_active = False
+    scores = []
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             gemini_resp = await client.post(
@@ -181,38 +191,52 @@ Return ONLY a valid JSON array:
                 },
             )
             gemini_resp.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Gemini HTTP error {e.response.status_code}: {e.response.text[:300]}")
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Gemini connection error: {e}")
 
-    raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-    
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("\n", 1)[-1]
-    if raw_text.endswith("```"):
-        raw_text = raw_text.rsplit("\n", 1)[0]
-    raw_text = raw_text.strip()
-    
-    try:
-        scores: list[dict] = json.loads(raw_text)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail=f"Gemini returned non-JSON output: {raw_text[:200]}")
+        raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[-1]
+        if raw_text.endswith("```"):
+            raw_text = raw_text.rsplit("\n", 1)[0]
+        raw_text = raw_text.strip()
+        
+        scores = json.loads(raw_text)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Gemini API failed, falling back to DB ranking. Error: {e}")
+        fallback_active = True
 
-    # --- Step 4: Merge rows with Gemini scores ---
-    score_map = {item["id"]: item for item in scores}
-    opp_lookup = {row.id: row for row in rows}
+    # --- Step 4: Merge rows with scores ---
     reranked = []
-    for row in rows:
-        score_data = score_map.get(row.id, {"match_score": 0, "match_reason": ""})
-        opp_out = OpportunityOut.model_validate(row)
-        reranked.append(
-            RerankedOpportunity(
-                **opp_out.model_dump(),
-                match_score=score_data.get("match_score", 0),
-                match_reason=score_data.get("match_reason", ""),
+    if fallback_active:
+        max_rank = max(ranks.values()) if ranks else 1.0
+        if max_rank <= 0.0:
+            max_rank = 1.0
+            
+        for row in rows:
+            rank = ranks.get(row.id, 0.0)
+            fallback_score = int((rank / max_rank) * 100)
+            opp_out = OpportunityOut.model_validate(row)
+            reranked.append(
+                RerankedOpportunity(
+                    **opp_out.model_dump(),
+                    match_score=fallback_score,
+                    match_reason="Matched by keyword relevance (AI fallback active).",
+                )
             )
-        )
+    else:
+        score_map = {item["id"]: item for item in scores}
+        for row in rows:
+            score_data = score_map.get(row.id, {"match_score": 0, "match_reason": "No reason provided."})
+            opp_out = OpportunityOut.model_validate(row)
+            reranked.append(
+                RerankedOpportunity(
+                    **opp_out.model_dump(),
+                    match_score=score_data.get("match_score", 0),
+                    match_reason=score_data.get("match_reason", ""),
+                )
+            )
+
     reranked.sort(key=lambda x: x.match_score, reverse=True)
 
     # --- Step 5: Save to cache ---
@@ -221,6 +245,7 @@ Return ONLY a valid JSON array:
     await session.commit()
 
     return RerankedList(total=len(reranked), items=reranked, cached=False)
+
 
 
 @router.get("/opportunities/{opp_id}", response_model=OpportunityDetail)
@@ -258,20 +283,28 @@ async def rerank_opportunities(
     if type:
         filters.append(Opportunity.type == type)
 
+    keywords = profile.job_keywords[:15]
     keyword_filters = [
         Opportunity.search_tsv.op("@@")(func.plainto_tsquery("simple", kw))
-        for kw in profile.job_keywords[:15]  # Cap at 15 keywords to keep the DB query fast
+        for kw in keywords
     ]
     filters.append(or_(*keyword_filters))
+    
+    combined_keywords = " OR ".join([f'"{kw}"' for kw in keywords])
+    ts_query = func.websearch_to_tsquery("simple", combined_keywords)
+    rank_col = func.ts_rank(Opportunity.search_tsv, ts_query).label("rank")
 
-    stmt = select(Opportunity)
+    stmt = select(Opportunity, rank_col)
     for f in filters:
         stmt = stmt.where(f)
-    stmt = stmt.order_by(Opportunity.posted_at.desc().nullslast()).limit(top_n)
-    rows = (await session.scalars(stmt)).all()
+    stmt = stmt.order_by(rank_col.desc(), Opportunity.posted_at.desc().nullslast()).limit(top_n)
+    db_rows = (await session.execute(stmt)).all()
 
-    if not rows:
+    if not db_rows:
         return RerankedList(total=0, items=[])
+        
+    rows = [r[0] for r in db_rows]
+    ranks = {r[0].id: r[1] for r in db_rows}
 
     # --- Step 2: Build a compact context for Gemini ---
     candidate_summary = (
@@ -316,46 +349,57 @@ Return ONLY a valid JSON array (no markdown, no explanation) in this exact forma
         "Content-Type": "application/json",
     }
 
+    fallback_active = False
+    scores = []
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             gemini_resp = await client.post(gemini_url, headers=headers, json=payload)
             gemini_resp.raise_for_status()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Gemini API HTTP error {e.response.status_code}: {e.response.text[:500]}"
-        )
-    except httpx.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Gemini API connection error: {str(e)}")
+            
+        raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-    raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("\n", 1)[-1]
-    if raw_text.endswith("```"):
-        raw_text = raw_text.rsplit("\n", 1)[0]
-    raw_text = raw_text.strip()
-    
-    try:
-        scores: list[dict] = json.loads(raw_text)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail=f"Gemini returned non-JSON output: {raw_text[:200]}")
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[-1]
+        if raw_text.endswith("```"):
+            raw_text = raw_text.rsplit("\n", 1)[0]
+        raw_text = raw_text.strip()
+        
+        scores = json.loads(raw_text)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Gemini API failed during rerank, falling back to DB ranking. Error: {e}")
+        fallback_active = True
 
     # --- Step 4: Merge scores with DB rows and sort ---
-    score_map = {item["id"]: item for item in scores}
-    row_map = {row.id: row for row in rows}
-
     reranked = []
-    for opp_id, row in row_map.items():
-        score_data = score_map.get(opp_id, {"match_score": 0, "match_reason": "No score returned by AI."})
-        opp_out = OpportunityOut.model_validate(row)
-        reranked.append(
-            RerankedOpportunity(
-                **opp_out.model_dump(),
-                match_score=score_data.get("match_score", 0),
-                match_reason=score_data.get("match_reason", ""),
+    if fallback_active:
+        max_rank = max(ranks.values()) if ranks else 1.0
+        if max_rank <= 0.0:
+            max_rank = 1.0
+            
+        for row in rows:
+            rank = ranks.get(row.id, 0.0)
+            fallback_score = int((rank / max_rank) * 100)
+            opp_out = OpportunityOut.model_validate(row)
+            reranked.append(
+                RerankedOpportunity(
+                    **opp_out.model_dump(),
+                    match_score=fallback_score,
+                    match_reason="Matched by keyword relevance (AI fallback active).",
+                )
             )
-        )
+    else:
+        score_map = {item["id"]: item for item in scores}
+        for row in rows:
+            score_data = score_map.get(row.id, {"match_score": 0, "match_reason": "No score returned by AI."})
+            opp_out = OpportunityOut.model_validate(row)
+            reranked.append(
+                RerankedOpportunity(
+                    **opp_out.model_dump(),
+                    match_score=score_data.get("match_score", 0),
+                    match_reason=score_data.get("match_reason", ""),
+                )
+            )
 
     reranked.sort(key=lambda x: x.match_score, reverse=True)
 
