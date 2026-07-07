@@ -12,8 +12,8 @@ const config: Config = {
         sans: ["Inter", "system-ui", "sans-serif"],
       },
       colors: {
-        accent: "#7c6aff",
-        "accent-2": "#00d4ff",
+        accent: "#6366f1",
+        "accent-2": "#0ea5e9",
       },
     },
   },

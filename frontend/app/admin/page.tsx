@@ -182,8 +182,8 @@ export default function AdminDashboard() {
                 <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Type</label>
                 <select className="input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}
                   style={{ padding: "0.6rem 0.85rem", cursor: "pointer" }}>
-                  <option value="" style={{ background: "#1a1a2e", color: "#fff" }}>All types</option>
-                  {types.map(t => <option key={t} value={t} style={{ background: "#1a1a2e", color: "#fff" }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  <option value="" style={{ background: "#ffffff", color: "#0f172a" }}>All types</option>
+                  {types.map(t => <option key={t} value={t} style={{ background: "#ffffff", color: "#0f172a" }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
                 </select>
               </div>
 
@@ -192,8 +192,8 @@ export default function AdminDashboard() {
                 <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Source</label>
                 <select className="input" value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1); }}
                   style={{ padding: "0.6rem 0.85rem", cursor: "pointer" }}>
-                  <option value="" style={{ background: "#1a1a2e", color: "#fff" }}>All sources</option>
-                  {stats?.sources?.map(s => <option key={s.source} value={s.source} style={{ background: "#1a1a2e", color: "#fff" }}>{s.source}</option>)}
+                  <option value="" style={{ background: "#ffffff", color: "#0f172a" }}>All sources</option>
+                  {stats?.sources?.map((s: any) => <option key={s.source} value={s.source} style={{ background: "#ffffff", color: "#0f172a" }}>{s.source}</option>)}
                 </select>
               </div>
 
@@ -208,7 +208,7 @@ export default function AdminDashboard() {
               {/* Active only toggle */}
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem", color: activeOnly ? "var(--text-primary)" : "var(--text-secondary)", paddingBottom: 2 }}>
                 <div onClick={() => { setActiveOnly(v => !v); setPage(1); }}
-                  style={{ width: 38, height: 20, borderRadius: 999, background: activeOnly ? "#7c6aff" : "rgba(255,255,255,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
+                  style={{ width: 38, height: 20, borderRadius: 999, background: activeOnly ? "#6366f1" : "rgba(0,0,0,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
                   <div style={{ position: "absolute", top: 2, left: activeOnly ? "calc(100% - 18px)" : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                 </div>
                 Active only
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 800 }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(255,255,255,0.02)" }}>
+                    <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(0,0,0,0.02)" }}>
                       {["Type", "Title", "Organisation", "Location", "Deadline", "Source", "Status", ""].map(h => (
                         <th key={h} style={{ padding: "12px 14px", color: "var(--text-secondary)", fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
                       ))}
@@ -256,9 +256,9 @@ export default function AdminDashboard() {
                       const expired = opp.deadline && new Date(opp.deadline) < today;
                       const color = TYPE_COLORS[opp.type?.toLowerCase()] || "#aaa";
                       return (
-                        <tr key={opp.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)", transition: "background 0.1s" }}
-                          onMouseEnter={e => (e.currentTarget.style.background = "rgba(124,106,255,0.05)")}
-                          onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)")}>
+                        <tr key={opp.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)", background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)", transition: "background 0.1s" }}
+                          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.03)")}
+                          onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)")}>
 
                           <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
                             <span style={{ padding: "3px 9px", borderRadius: 6, fontSize: "0.72rem", fontWeight: 700, textTransform: "capitalize", background: `${color}22`, color }}>{opp.type}</span>
@@ -373,7 +373,7 @@ export default function AdminDashboard() {
                         Click "Refresh Logs" to load ingestion history.
                       </td></tr>
                     ) : runs.map(run => (
-                      <tr key={run.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                      <tr key={run.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
                         <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>#{run.id}</td>
                         <td style={{ padding: "12px 16px", fontWeight: 600 }}>{run.source}</td>
                         <td style={{ padding: "12px 16px" }}>

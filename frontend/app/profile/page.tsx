@@ -144,7 +144,7 @@ export default function ProfilePage() {
                   <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem", color: "var(--text-secondary)" }}>Extracted Skills</h3>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {cv.skills?.map((s: string, i: number) => (
-                      <span key={i} style={{ padding: "4px 10px", background: "rgba(255,255,255,0.05)", borderRadius: 6, fontSize: "0.8rem" }}>{s}</span>
+                      <span key={i} style={{ padding: "4px 10px", background: "rgba(0,0,0,0.05)", borderRadius: 6, fontSize: "0.8rem" }}>{s}</span>
                     ))}
                   </div>
                 </div>
@@ -165,7 +165,7 @@ export default function ProfilePage() {
                   <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem", color: "var(--text-secondary)" }}>Projects & Experience</h3>
                   <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                     {cv.projects.map((p: any, i: number) => (
-                      <div key={i} style={{ padding: "1rem", background: "rgba(255,255,255,0.02)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                      <div key={i} style={{ padding: "1rem", background: "rgba(0,0,0,0.02)", borderRadius: 8, border: "1px solid var(--border)" }}>
                         <h4 style={{ fontWeight: 600, fontSize: "0.95rem" }}>{p.name}</h4>
                         <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.5 }}>{p.description}</p>
                       </div>

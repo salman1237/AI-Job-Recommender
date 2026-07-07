@@ -191,7 +191,7 @@ export default function OpportunitiesPage() {
                 onClick={() => setHideBelow50(v => !v)}
                 style={{
                   width: 40, height: 22, borderRadius: 999,
-                  background: hideBelow50 ? "#7c6aff" : "rgba(255,255,255,0.1)",
+                  background: hideBelow50 ? "#6366f1" : "rgba(0,0,0,0.1)",
                   position: "relative", cursor: "pointer", transition: "background 0.2s",
                 }}
               >
@@ -210,7 +210,7 @@ export default function OpportunitiesPage() {
                 onClick={() => setHideExpired(v => !v)}
                 style={{
                   width: 40, height: 22, borderRadius: 999,
-                  background: hideExpired ? "#00d4ff" : "rgba(255,255,255,0.1)",
+                  background: hideExpired ? "#0ea5e9" : "rgba(0,0,0,0.1)",
                   position: "relative", cursor: "pointer", transition: "background 0.2s",
                 }}
               >
@@ -335,7 +335,7 @@ export default function OpportunitiesPage() {
                     </div>
 
                     {opp.match_reason && (
-                      <div style={{ background: "rgba(255,255,255,0.03)", padding: "10px 12px", borderRadius: 8, fontSize: "0.82rem", color: "#c0c0d8", borderLeft: "2px solid var(--accent)", fontStyle: "italic", marginBottom: "1.2rem", lineHeight: 1.5 }}>
+                      <div style={{ background: "rgba(0,0,0,0.03)", padding: "10px 12px", borderRadius: 8, fontSize: "0.82rem", color: "var(--text-secondary)", borderLeft: "2px solid var(--accent)", fontStyle: "italic", marginBottom: "1.2rem", lineHeight: 1.5 }}>
                         "{opp.match_reason}"
                       </div>
                     )}
