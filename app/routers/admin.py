@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db import get_session
 from app.ingest.runner import run_ingestion
-from app.schemas import IngestResult, RunOut
+from app.schemas import IngestResult, RunOut, EmailLogOut
 
 from app.dependencies import require_admin
 
@@ -35,3 +35,32 @@ async def list_runs(
     stmt = select(IngestionRun).order_by(IngestionRun.id.desc()).limit(limit)
     rows = (await session.scalars(stmt)).all()
     return [RunOut.model_validate(r) for r in rows]
+
+
+@router.get(
+    "/email-logs",
+    response_model=list[EmailLogOut],
+    dependencies=[Depends(require_admin)],
+)
+async def list_email_logs(
+    limit: int = 100,
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models import EmailLog, User
+
+    # Join EmailLog with User to get the email address
+    stmt = (
+        select(EmailLog, User.email)
+        .outerjoin(User, EmailLog.user_id == User.id)
+        .order_by(EmailLog.id.desc())
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).all()
+    
+    out = []
+    for log, email in rows:
+        log_out = EmailLogOut.model_validate(log)
+        log_out.user_email = email
+        out.append(log_out)
+        
+    return out

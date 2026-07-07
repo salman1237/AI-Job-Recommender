@@ -95,3 +95,15 @@ class RunOut(BaseModel):
 class IngestResult(BaseModel):
     status: str
     detail: str
+
+
+class EmailLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    user_id: int
+    user_email: str | None = None
+    email_type: str
+    status: str
+    error_message: str | None = None
+    sent_at: datetime

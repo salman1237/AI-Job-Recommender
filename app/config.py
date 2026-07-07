@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60 * 24 * 7  # 1 week
     upload_dir: str = "uploads"
     cors_origins: list[str] = ["http://localhost:3000"]
+    
+    # SMTP Config
+    mail_host: str = "smtp.gmail.com"
+    mail_port: int = 587
+    mail_username: str = ""
+    mail_password: str = ""
+    mail_from_address: str = ""
+    mail_from_name: str = "AI Job Recommender"
 
     # Descriptive UA for outbound requests (Phase 8 — be polite to sources).
     user_agent: str = (

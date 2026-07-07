@@ -67,8 +67,6 @@ export const getAdminOpportunities = (params: Record<string, unknown>) =>
 export const getStats = () => api.get("/stats");
 
 // ── Admin ──────────────────────────────────────────────────────────────
-export const triggerIngest = () =>
-  api.post("/admin/ingest");
-
-export const getIngestionRuns = () =>
-  api.get("/admin/runs");
+export const triggerIngest = () => api.post("/admin/ingest");
+export const getIngestionRuns = () => api.get("/admin/runs");
+export const getEmailLogs = () => api.get("/admin/email-logs");

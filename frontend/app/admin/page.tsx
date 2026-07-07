@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { triggerIngest, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats } from "@/lib/api";
+import { triggerIngest, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import toast from "react-hot-toast";
@@ -8,13 +8,14 @@ import { useRouter } from "next/navigation";
 import {
   Database, Play, RefreshCw, Loader2, Key,
   Search, ChevronLeft, ChevronRight, ExternalLink,
-  MapPin, Building, Calendar, Filter, BarChart2, Briefcase
+  MapPin, Building, Calendar, Filter, BarChart2, Briefcase, Mail
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface Run { id: number; source: string; status: string; started_at: string; fetched: number; created: number; updated: number; }
 interface Opp { id: number; title: string; type: string; organization: string | null; location: string | null; country: string | null; deadline: string | null; posted_at: string | null; url: string; is_active: boolean; source: string; }
 interface Stats { total: number; active: number; by_type: Record<string, number>; sources?: { source: string }[]; }
+interface EmailLog { id: number; user_id: number; user_email: string; email_type: string; status: string; error_message: string | null; sent_at: string; }
 
 // ── Tab component ──────────────────────────────────────────────────────
 function Tab({ label, active, onClick, icon: Icon }: { label: string; active: boolean; onClick: () => void; icon: any }) {
@@ -35,7 +36,7 @@ function Tab({ label, active, onClick, icon: Icon }: { label: string; active: bo
 export default function AdminDashboard() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "jobs" | "ingest">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "jobs" | "ingest" | "emails">("overview");
 
   // ── Auth guard ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -65,6 +66,23 @@ export default function AdminDashboard() {
     } catch { toast.error("Failed to trigger ingestion"); }
     finally { setTriggering(false); }
   };
+
+  // ── Email Logs state ────────────────────────────────────────────────
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [emailLogsLoading, setEmailLogsLoading] = useState(false);
+
+  const loadEmailLogs = useCallback(async () => {
+    setEmailLogsLoading(true);
+    try {
+      const { data } = await getEmailLogs();
+      setEmailLogs(data);
+    } catch { toast.error("Failed to load email logs."); }
+    finally { setEmailLogsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "emails") loadEmailLogs();
+  }, [activeTab, loadEmailLogs]);
 
   // ── Overview / Stats ────────────────────────────────────────────────
   const [stats, setStats] = useState<Stats | null>(null);
@@ -138,6 +156,7 @@ export default function AdminDashboard() {
           <Tab label="Overview" icon={BarChart2} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
           <Tab label="All Opportunities" icon={Briefcase} active={activeTab === "jobs"} onClick={() => setActiveTab("jobs")} />
           <Tab label="Ingestion" icon={Play} active={activeTab === "ingest"} onClick={() => setActiveTab("ingest")} />
+          <Tab label="Email Logs" icon={Mail} active={activeTab === "emails"} onClick={() => setActiveTab("emails")} />
         </div>
 
         {/* ── OVERVIEW TAB ─────────────────────────────────────────────── */}
@@ -385,6 +404,60 @@ export default function AdminDashboard() {
                         <td style={{ padding: "12px 16px", textAlign: "center" }}>{run.fetched}</td>
                         <td style={{ padding: "12px 16px", textAlign: "center", color: "#4ade80" }}>{run.created}</td>
                         <td style={{ padding: "12px 16px", textAlign: "center", color: "#fbbf24" }}>{run.updated}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── EMAIL LOGS TAB ───────────────────────────────────────────── */}
+        {activeTab === "emails" && (
+          <div>
+            <div className="glass" style={{ padding: "1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", alignItems: "flex-end" }}>
+              <button onClick={loadEmailLogs} disabled={emailLogsLoading} className="btn-ghost" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
+                {emailLogsLoading ? <Loader2 size={16} className="spinner" /> : <RefreshCw size={16} />} Refresh Logs
+              </button>
+            </div>
+
+            <div className="glass" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 600 }}>Recent Email Deliveries</h2>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.875rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      {["ID", "User Email", "Type", "Status", "Sent At", "Error Message"].map(h => (
+                        <th key={h} style={{ padding: "12px 16px", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {emailLogs.length === 0 ? (
+                      <tr><td colSpan={6} style={{ padding: "2.5rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                        {emailLogsLoading ? "Loading..." : "No email logs found."}
+                      </td></tr>
+                    ) : emailLogs.map(log => (
+                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>#{log.id}</td>
+                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>{log.user_email || `User #${log.user_id}`}</td>
+                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>
+                          <span style={{ padding: "3px 8px", borderRadius: 4, background: "rgba(0,0,0,0.05)", fontSize: "0.75rem", fontWeight: 600 }}>
+                            {log.email_type === "daily_digest" ? "Daily Digest" : log.email_type === "deadline_alert" ? "Deadline Alert" : log.email_type}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", background: log.status === "success" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: log.status === "success" ? "#4ade80" : "#f87171" }}>
+                            {log.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)", fontSize: "0.82rem" }}>{new Date(log.sent_at).toLocaleString()}</td>
+                        <td style={{ padding: "12px 16px", color: "#f87171", fontSize: "0.82rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.error_message || ""}>
+                          {log.error_message || "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -864,6 +864,16 @@ CORS_ORIGINS=["http://localhost:3000", "https://your-vercel-app.vercel.app"]
 
 # Local upload directory
 UPLOAD_DIR=uploads
+
+# SMTP Configuration (For Daily Digests and Alerts)
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=your_email@gmail.com
+MAIL_FROM_NAME="AI Job Recommender"
 ```
 
 ### Frontend — `frontend/.env.local`
@@ -948,6 +958,28 @@ npm run dev
 ```
 
 App available at: `http://localhost:3000`
+
+### 3. SMTP Local Testing (Optional)
+If you want to test the email sending feature locally without using a real email account, you can run Python's built-in dummy SMTP server in a separate terminal:
+```bash
+python -m smtpd -n -c DebuggingServer localhost:1025
+```
+Then, update your local `.env` file to point to it:
+```env
+MAIL_HOST=localhost
+MAIL_PORT=1025
+MAIL_USERNAME=
+MAIL_PASSWORD=
+```
+Emails will be printed directly to your terminal instead of being sent.
+
+### 4. SMTP Production Setup (Gmail)
+To send emails in production using Gmail:
+1. Go to your Google Account -> Security.
+2. Enable 2-Step Verification.
+3. Search for "App Passwords" and create a new app password.
+4. Add the 16-character password to your `.env` (or FastAPI Cloud dashboard) as `MAIL_PASSWORD`.
+5. Set `MAIL_HOST=smtp.gmail.com` and `MAIL_PORT=587`.
 
 ---
 

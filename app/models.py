@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    ForeignKey,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
@@ -117,3 +118,16 @@ class IngestionRun(Base):
     updated: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    email_type: Mapped[str] = mapped_column(String(50), nullable=False) # 'daily_digest' or 'deadline_alert'
+    status: Mapped[str] = mapped_column(String(20), nullable=False) # 'success' or 'error'
+    error_message: Mapped[str | None] = mapped_column(Text)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
