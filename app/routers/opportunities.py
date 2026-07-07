@@ -133,15 +133,17 @@ async def get_recommended_opportunities(
         .where(Opportunity.is_active.is_(True))
         .where(or_(*keyword_filters))
         .order_by(rank_col.desc(), Opportunity.posted_at.desc().nullslast())
-        .limit(top_n)
+        .limit(1000)
     )
     db_rows = (await session.execute(stmt)).all()
 
     if not db_rows:
         return RerankedList(total=0, items=[], cached=False)
         
-    rows = [r[0] for r in db_rows]
-    ranks = {r[0].id: r[1] for r in db_rows}
+    all_rows = [r[0] for r in db_rows]
+    all_ranks = {r[0].id: r[1] for r in db_rows}
+    
+    rows_for_ai = all_rows[:top_n]
 
     # --- Step 2: Build Gemini prompt ---
     candidate_summary = (
@@ -159,7 +161,7 @@ async def get_recommended_opportunities(
             "description": (row.description or "")[:400],
             "tags": row.tags,
         }
-        for row in rows
+        for row in rows_for_ai
     ]
 
     gemini_prompt = f"""You are an expert career advisor. Score each opportunity for the candidate below.
@@ -209,12 +211,12 @@ Return ONLY a valid JSON array:
     # --- Step 4: Merge rows with scores ---
     reranked = []
     if fallback_active:
-        max_rank = max(ranks.values()) if ranks else 1.0
+        max_rank = max(all_ranks.values()) if all_ranks else 1.0
         if max_rank <= 0.0:
             max_rank = 1.0
             
-        for row in rows:
-            rank = ranks.get(row.id, 0.0)
+        for row in all_rows:
+            rank = all_ranks.get(row.id, 0.0)
             fallback_score = int((rank / max_rank) * 100)
             opp_out = OpportunityOut.model_validate(row)
             reranked.append(
@@ -226,7 +228,7 @@ Return ONLY a valid JSON array:
             )
     else:
         score_map = {item["id"]: item for item in scores}
-        for row in rows:
+        for row in rows_for_ai:
             score_data = score_map.get(row.id, {"match_score": 0, "match_reason": "No reason provided."})
             opp_out = OpportunityOut.model_validate(row)
             reranked.append(
@@ -297,14 +299,16 @@ async def rerank_opportunities(
     stmt = select(Opportunity, rank_col)
     for f in filters:
         stmt = stmt.where(f)
-    stmt = stmt.order_by(rank_col.desc(), Opportunity.posted_at.desc().nullslast()).limit(top_n)
+    stmt = stmt.order_by(rank_col.desc(), Opportunity.posted_at.desc().nullslast()).limit(1000)
     db_rows = (await session.execute(stmt)).all()
 
     if not db_rows:
         return RerankedList(total=0, items=[])
         
-    rows = [r[0] for r in db_rows]
-    ranks = {r[0].id: r[1] for r in db_rows}
+    all_rows = [r[0] for r in db_rows]
+    all_ranks = {r[0].id: r[1] for r in db_rows}
+    
+    rows_for_ai = all_rows[:top_n]
 
     # --- Step 2: Build a compact context for Gemini ---
     candidate_summary = (
@@ -323,7 +327,7 @@ async def rerank_opportunities(
             "description": (row.description or "")[:400],  # Truncate to save tokens
             "tags": row.tags,
         }
-        for row in rows
+        for row in rows_for_ai
     ]
 
     gemini_prompt = f"""You are an expert career advisor. Given the candidate profile and a list of opportunities, \
@@ -373,12 +377,12 @@ Return ONLY a valid JSON array (no markdown, no explanation) in this exact forma
     # --- Step 4: Merge scores with DB rows and sort ---
     reranked = []
     if fallback_active:
-        max_rank = max(ranks.values()) if ranks else 1.0
+        max_rank = max(all_ranks.values()) if all_ranks else 1.0
         if max_rank <= 0.0:
             max_rank = 1.0
             
-        for row in rows:
-            rank = ranks.get(row.id, 0.0)
+        for row in all_rows:
+            rank = all_ranks.get(row.id, 0.0)
             fallback_score = int((rank / max_rank) * 100)
             opp_out = OpportunityOut.model_validate(row)
             reranked.append(
@@ -390,7 +394,7 @@ Return ONLY a valid JSON array (no markdown, no explanation) in this exact forma
             )
     else:
         score_map = {item["id"]: item for item in scores}
-        for row in rows:
+        for row in rows_for_ai:
             score_data = score_map.get(row.id, {"match_score": 0, "match_reason": "No score returned by AI."})
             opp_out = OpportunityOut.model_validate(row)
             reranked.append(
