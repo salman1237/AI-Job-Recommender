@@ -180,7 +180,7 @@ Return ONLY a valid JSON array:
     fallback_active = False
     scores = []
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             gemini_resp = await client.post(
                 "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
                 headers={
