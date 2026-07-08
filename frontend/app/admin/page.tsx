@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { triggerIngest, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs } from "@/lib/api";
+import { triggerIngest, triggerEmails, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import toast from "react-hot-toast";
@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   // ── Email Logs state ────────────────────────────────────────────────
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [emailLogsLoading, setEmailLogsLoading] = useState(false);
+  const [triggeringEmails, setTriggeringEmails] = useState(false);
 
   const loadEmailLogs = useCallback(async () => {
     setEmailLogsLoading(true);
@@ -83,6 +84,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === "emails") loadEmailLogs();
   }, [activeTab, loadEmailLogs]);
+
+  const handleTriggerEmails = async () => {
+    setTriggeringEmails(true);
+    try {
+      await triggerEmails();
+      toast.success("Emails triggered in background!");
+      setTimeout(loadEmailLogs, 2500);
+    } catch { toast.error("Failed to trigger emails"); }
+    finally { setTriggeringEmails(false); }
+  };
 
   // ── Overview / Stats ────────────────────────────────────────────────
   const [stats, setStats] = useState<Stats | null>(null);
@@ -419,6 +430,9 @@ export default function AdminDashboard() {
             <div className="glass" style={{ padding: "1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", alignItems: "flex-end" }}>
               <button onClick={loadEmailLogs} disabled={emailLogsLoading} className="btn-ghost" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
                 {emailLogsLoading ? <Loader2 size={16} className="spinner" /> : <RefreshCw size={16} />} Refresh Logs
+              </button>
+              <button onClick={handleTriggerEmails} disabled={triggeringEmails} className="btn-primary" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
+                {triggeringEmails ? <Loader2 size={16} className="spinner" /> : <Play size={16} />} Trigger Manual Emails
               </button>
             </div>
 

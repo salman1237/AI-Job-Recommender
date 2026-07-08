@@ -68,5 +68,6 @@ export const getStats = () => api.get("/stats");
 
 // ── Admin ──────────────────────────────────────────────────────────────
 export const triggerIngest = () => api.post("/admin/ingest");
+export const triggerEmails = () => api.post("/admin/trigger-emails");
 export const getIngestionRuns = () => api.get("/admin/runs");
 export const getEmailLogs = () => api.get("/admin/email-logs");

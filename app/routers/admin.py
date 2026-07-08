@@ -6,6 +6,7 @@ from app.config import settings
 from app.db import get_session
 from app.ingest.runner import run_ingestion
 from app.schemas import IngestResult, RunOut, EmailLogOut
+from app.services.email_service import run_daily_opportunity_digests, run_deadline_alerts
 
 from app.dependencies import require_admin
 
@@ -19,6 +20,13 @@ async def trigger_ingest(background_tasks: BackgroundTasks):
         status="started",
         detail="Ingestion started in the background. Check /admin/runs for progress.",
     )
+
+
+@router.post("/trigger-emails", dependencies=[Depends(require_admin)])
+async def trigger_emails(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_daily_opportunity_digests)
+    background_tasks.add_task(run_deadline_alerts)
+    return {"status": "started", "detail": "Emails triggered in the background. Check /admin/email-logs for progress."}
 
 
 @router.get(
