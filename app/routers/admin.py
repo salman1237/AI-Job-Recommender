@@ -8,12 +8,12 @@ from app.ingest.runner import run_ingestion
 from app.schemas import IngestResult, RunOut, EmailLogOut
 from app.services.email_service import run_daily_opportunity_digests, run_deadline_alerts
 
-from app.dependencies import require_admin
+from app.dependencies import require_admin, require_admin_or_cron
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.post("/ingest", response_model=IngestResult, dependencies=[Depends(require_admin)])
+@router.post("/ingest", response_model=IngestResult, dependencies=[Depends(require_admin_or_cron)])
 async def trigger_ingest(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_ingestion)
     return IngestResult(
@@ -22,7 +22,7 @@ async def trigger_ingest(background_tasks: BackgroundTasks):
     )
 
 
-@router.post("/trigger-emails", dependencies=[Depends(require_admin)])
+@router.post("/trigger-emails", dependencies=[Depends(require_admin_or_cron)])
 async def trigger_emails(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_daily_opportunity_digests)
     background_tasks.add_task(run_deadline_alerts)
