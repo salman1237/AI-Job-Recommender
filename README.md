@@ -35,8 +35,9 @@ This platform fully automates that process:
 
 1. **Aggregates** opportunities daily from 6 live sources (WordPress sites, BDJobs, Shomvob)
 2. **Parses** your uploaded PDF resume using Gemini AI to extract a structured profile in JSON
-3. **Scores** every relevant opportunity against your profile using Gemini AI (0–100)
-4. **Displays** results with rich filters, animated cards, and instant-load caching
+3. **Scores** every relevant opportunity against your profile using Gemini AI (0–100), with a DB fallback scoring mechanism if AI rate limits or timeouts occur
+4. **Displays** results in a beautiful Light Mode UI with rich filters, animated cards, and instant-load caching
+5. **Notifies** users with automated daily email digests of new matches and approaching deadline alerts
 
 ---
 
@@ -179,6 +180,16 @@ The ingestion pipeline pulls from **6 live sources** covering jobs, scholarships
 | `status` | Text | `"success"` or `"error"` |
 | `error` | Text | Error details if failed |
 
+### `email_logs` table
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | BigInt PK | Auto-incremented ID |
+| `user_id` | BigInt FK | Reference to `users.id` |
+| `email_type` | String(50) | `"daily_digest"` or `"deadline_alert"` |
+| `status` | String(20) | `"success"` or `"error"` |
+| `error_message` | Text | Error details if failed |
+| `sent_at` | DateTime TZ | When the email was sent |
+
 ---
 
 ## Data Ingestion Pipeline
@@ -295,15 +306,15 @@ Step 2: Full-Text Search (PostgreSQL GIN Index)
           OR ...
         )
         ORDER BY posted_at DESC
-        LIMIT 100
+        LIMIT 1000
 
 Step 3: Build Gemini Prompt
    └─ Candidate summary (max ~200 tokens):
         "Skills: Python, React... Keywords: software engineer...
          Projects: AI Sentiment Analyzer... Achievements: Hackathon Winner..."
-   └─ Opportunities context (max 100 items × 400 char descriptions)
+   └─ Opportunities context (max 30 items × 400 char descriptions)
 
-Step 4: Call Gemini AI (gemini-flash-latest, timeout 60s)
+Step 4: Call Gemini AI (gemini-flash-latest, timeout 45s)
    └─ response_mime_type: "application/json"
    └─ Returns a scored array:
         [
@@ -311,6 +322,7 @@ Step 4: Call Gemini AI (gemini-flash-latest, timeout 60s)
           { "id": 17, "match_score": 78, "match_reason": "React experience aligns with frontend role" },
           ...
         ]
+   └─ Fallback: If Gemini times out or fails, falls back to an internal DB scoring heuristic based on keyword matches.
 
 Step 5: Merge & Sort
    └─ Join Gemini scores back to full opportunity records from DB
@@ -405,6 +417,7 @@ This is the core page of the application.
 ### `/admin` — Admin Dashboard
 - Requires admin role (enforced by `require_admin` dependency)
 - **Trigger Manual Ingest** button — fires `POST /admin/ingest` → starts background ingestion
+- **Trigger Manual Emails** button — fires `POST /admin/trigger-emails` → dispatches automated emails
 - **Ingestion Run Logs** table — shows last 50 runs with:
   - Source name
   - Start/end times
@@ -600,7 +613,7 @@ Get AI-ranked opportunities personalised for the logged-in user.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `top_n` | `integer` | `100` | How many candidates to send to Gemini (max 100) |
+| `top_n` | `integer` | `30` | How many candidates to send to Gemini (max 30) |
 | `refresh` | `boolean` | `false` | Force re-call to Gemini, ignoring cached results |
 
 **Response `200 OK`:**
@@ -680,6 +693,19 @@ Trigger a full ingestion cycle for all 6 sources in the background.
 ```
 
 > Note: The ingestion runs asynchronously. Use `GET /admin/runs` to monitor progress.
+
+---
+
+#### `POST /admin/trigger-emails`
+Trigger a manual dispatch of daily digest and deadline alert emails to eligible users. Can also be triggered by an external cron via the `admin-key` header.
+
+**Response `200 OK`:**
+```json
+{
+  "status": "success",
+  "detail": "Email sending triggered"
+}
+```
 
 ---
 
