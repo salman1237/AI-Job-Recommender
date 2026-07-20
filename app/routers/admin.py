@@ -47,15 +47,19 @@ async def backfill_wp_fields():
 
     WP_SOURCES = {"opportunitydesk", "opp4youth", "opp4africans", "uri_fellowships"}
 
-    # Load rows BEFORE starting the stream so any DB error surfaces as a proper
-    # HTTP 500 (caught by resp.ok on the frontend) rather than aborting the
-    # in-flight SSE connection and triggering an opaque network error.
+    # Load plain tuples (not ORM objects) so there is no session attachment,
+    # expiry, or DetachedInstanceError risk after the session closes.
     async with async_session() as session:
-        rows = (
-            await session.scalars(
-                select(Opportunity).where(Opportunity.source.in_(WP_SOURCES))
-            )
-        ).all()
+        result = await session.execute(
+            select(
+                Opportunity.id,
+                Opportunity.deadline,
+                Opportunity.organization,
+                Opportunity.location,
+                Opportunity.raw,
+            ).where(Opportunity.source.in_(WP_SOURCES))
+        )
+        rows = result.all()  # list of Row(id, deadline, organization, location, raw)
 
     def _sse(payload: dict) -> str:
         return f"data: {json.dumps(payload)}\n\n"
@@ -69,46 +73,48 @@ async def backfill_wp_fields():
             no_raw = no_content = already_complete = 0
             pending: list[tuple[int, dict]] = []  # (id, {field: new_value})
 
-            for i, opp in enumerate(rows):
-                if not opp.raw:
+            for i, row in enumerate(rows):
+                opp_id, deadline, organization, location, raw = row
+
+                if not raw:
                     no_raw += 1
                 else:
-                    content_html = (opp.raw.get("content") or {}).get("rendered")
-                    class_list = opp.raw.get("class_list")
+                    content_html = (raw.get("content") or {}).get("rendered")
+                    class_list = raw.get("class_list")
 
                     if not content_html:
                         no_content += 1
                     else:
                         needs_anything = (
-                            opp.deadline is None
-                            or not opp.organization
-                            or not opp.location
+                            deadline is None
+                            or not organization
+                            or not location
                         )
                         if not needs_anything:
                             already_complete += 1
                         else:
                             patch: dict = {}
 
-                            if opp.deadline is None:
+                            if deadline is None:
                                 val = _parse_deadline(content_html)
                                 if val:
                                     patch["deadline"] = val
                                     deadline_filled += 1
 
-                            if not opp.organization:
+                            if not organization:
                                 val = _parse_organization(content_html)
                                 if val:
                                     patch["organization"] = val
                                     org_filled += 1
 
-                            if not opp.location:
+                            if not location:
                                 val = _parse_location(content_html, class_list)
                                 if val:
                                     patch["location"] = val
                                     loc_filled += 1
 
                             if patch:
-                                pending.append((opp.id, patch))
+                                pending.append((opp_id, patch))
                                 updated += 1
 
                 if (i + 1) % 50 == 0 or (i + 1) == total:
@@ -125,8 +131,7 @@ async def backfill_wp_fields():
                     })
                     await asyncio.sleep(0)
 
-            # Commit all changes in a short-lived session (no session held open
-            # during the long parse/yield loop above).
+            # Commit all changes in a short-lived session.
             if pending:
                 async with async_session() as session:
                     for opp_id, patch in pending:

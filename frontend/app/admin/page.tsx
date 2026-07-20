@@ -111,7 +111,7 @@ export default function AdminDashboard() {
           } catch { /* ignore malformed lines */ }
         }
       }
-    } catch { toast.error("Backfill failed."); }
+    } catch (err: unknown) { toast.error(`Backfill failed: ${(err as Error)?.message ?? "network error"}`); }
     finally { setBackfilling(false); }
   };
 

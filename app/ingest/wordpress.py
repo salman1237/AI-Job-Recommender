@@ -62,7 +62,7 @@ _SKIP_CATS = {
 
 # Matches "Deadline: <date>" in multiple formats including ordinal suffixes (1st, 3rd, 22nd).
 _DEADLINE_RE = re.compile(
-    r"deadline\s*[:\-]\s*"
+    r"deadline\s*:\s*"
     r"(?:"
     r"(\w+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s*\d{4})"       # "Oct 15, 2026" / "June 3rd, 2026"
     r"|(\d{1,2}(?:st|nd|rd|th)?\.?\s+\w+\.?[,\s]+\d{4})"  # "15 Oct 2026" / "3rd June, 2025"
