@@ -16,14 +16,14 @@ import toast from "react-hot-toast";
 const RANKING_STEPS: LoadingStep[] = [
   { label: "Fetching latest opportunities…",   duration: 1500 },
   { label: "Reading your CV profile…",          duration: 3000 },
-  { label: "Scoring each match with Gemini AI…", duration: 7000 },
+  { label: "Scoring each match with GPT-5.5…",   duration: 7000 },
   { label: "Sorting by best fit…",              duration: 2000 },
   { label: "Almost ready!",                     duration: 1500 },
 ];
 
 const RANKING_TIPS = [
   "A match score above 80% means you're a strong fit — don't hesitate to apply!",
-  "Gemini AI reads your full CV, not just keywords. Projects and descriptions matter.",
+  "GPT-5.5 reads your full CV, not just keywords. Projects and descriptions matter.",
   "Scores refresh each time you click 'Refresh with AI' for the latest rankings.",
   "Opportunities with a deadline soon are shown first within each score tier.",
   "Uploading an updated CV gives you fresher, more accurate match scores.",
@@ -251,7 +251,7 @@ export default function OpportunitiesPage() {
               <Loader2 size={18} className="spinner" style={{ color: "#7c6aff", flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                  Gemini AI is re-ranking your matches…
+                  GPT-5.5 is re-ranking your matches…
                 </p>
                 <div className="progress-bar-track" style={{ marginTop: 8 }}>
                   <div className="progress-bar-fill" />
@@ -266,7 +266,7 @@ export default function OpportunitiesPage() {
           <div className="glass" style={{ padding: "4rem 2rem", textAlign: "center" }}>
             <h2 style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "1rem" }}>No CV Found</h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "2rem", maxWidth: 400, margin: "0 auto 2rem" }}>
-              Upload your CV in your profile to let Gemini AI find and rank the best opportunities for you.
+              Upload your CV in your profile to let GPT-5.5 find and rank the best opportunities for you.
             </p>
             <Link href="/profile" className="btn-primary" style={{ display: "inline-flex", textDecoration: "none" }}>
               Go to Profile

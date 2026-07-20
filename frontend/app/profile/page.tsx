@@ -12,14 +12,14 @@ import Image from "next/image";
 const CV_STEPS: LoadingStep[] = [
   { label: "Uploading your PDF…",            duration: 2000 },
   { label: "Extracting text content…",       duration: 3500 },
-  { label: "Gemini AI reading your CV…",     duration: 6000 },
+  { label: "GPT-5.5 reading your CV…",        duration: 6000 },
   { label: "Identifying skills & keywords…", duration: 2500 },
   { label: "Building your AI profile…",      duration: 1500 },
 ];
 
 const CV_TIPS = [
-  "A focused 1–2 page CV gives Gemini AI the clearest signal about your strengths.",
-  "Include project descriptions — Gemini matches based on context, not just skill names.",
+  "A focused 1–2 page CV gives GPT-5.5 the clearest signal about your strengths.",
+  "Include project descriptions — GPT-5.5 matches based on context, not just skill names.",
   "Listing certifications and tools improves your match rate for technical opportunities.",
   "After parsing, head to Opportunities to see your AI-ranked matches!",
 ];
@@ -113,7 +113,7 @@ export default function ProfilePage() {
                   <FileText size={20} className="gradient-text" /> AI Resume Profile
                 </h2>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: 4, maxWidth: 600 }}>
-                  Upload your latest PDF CV. Our Gemini AI will parse your skills, education, and projects to automatically match you with the best opportunities.
+                  Upload your latest PDF CV. Our GPT-5.5 will parse your skills, education, and projects to automatically match you with the best opportunities.
                 </p>
               </div>
               <button
