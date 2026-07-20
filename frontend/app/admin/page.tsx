@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import {
-  triggerIngest, triggerEmails, backfillWp, getIngestionRuns,
+  triggerIngest, triggerEmails, getIngestionRuns,
   getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import {
   Database, Play, RefreshCw, Loader2, Search, ChevronLeft, ChevronRight,
   ExternalLink, MapPin, Building, Calendar, Filter, BarChart2, Briefcase,
-  Mail, Users, Wand2, X, TrendingUp, CheckCircle
+  Mail, Users, X, TrendingUp
 } from "lucide-react";
 
 interface Run { id: number; source: string; status: string; started_at: string; fetched: number; created: number; updated: number; }
@@ -62,9 +62,6 @@ export default function AdminDashboard() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillProgress, setBackfillProgress] = useState<null | { processed: number; total: number; pct: number; updated: number; deadline_filled: number; org_filled: number; loc_filled: number }>(null);
-  const [backfillResult, setBackfillResult] = useState<null | { records_updated: number; deadline_filled: number; organization_filled: number; location_filled: number; total_wp_records: number; skipped_no_raw: number; skipped_no_content: number; skipped_already_complete: number }>(null);
 
   const loadRuns = async () => {
     setRunsLoading(true);
@@ -78,37 +75,6 @@ export default function AdminDashboard() {
     try { await triggerIngest(); toast.success("Ingestion triggered in background!"); setTimeout(loadRuns, 2500); }
     catch { toast.error("Failed to trigger ingestion"); }
     finally { setTriggering(false); }
-  };
-
-  const handleBackfill = async () => {
-    setBackfilling(true); setBackfillProgress(null); setBackfillResult(null);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    try {
-      const resp = await fetch(`${API_URL}/admin/backfill-wp`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const ev = JSON.parse(line.slice(6));
-            if (ev.type === "start") setBackfillProgress({ processed: 0, total: ev.total, pct: 0, updated: 0, deadline_filled: 0, org_filled: 0, loc_filled: 0 });
-            else if (ev.type === "progress") setBackfillProgress(ev);
-            else if (ev.type === "done") { setBackfillProgress(null); setBackfillResult(ev); toast.success(`Backfill done — ${ev.records_updated} records updated.`); }
-            else if (ev.type === "error") toast.error(`Backfill error: ${ev.message}`);
-          } catch { /* ignore */ }
-        }
-      }
-    } catch (err: unknown) { toast.error(`Backfill failed: ${(err as Error)?.message ?? "network error"}`); }
-    finally { setBackfilling(false); }
   };
 
   // Emails
@@ -380,47 +346,7 @@ export default function AdminDashboard() {
                 style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 {triggering ? <Loader2 size={15} className="spinner" /> : <Play size={15} />} Trigger Ingest
               </button>
-              <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 2px" }} />
-              <button onClick={handleBackfill} disabled={backfilling} className="btn"
-                style={{ display: "flex", alignItems: "center", gap: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>
-                {backfilling ? <Loader2 size={15} className="spinner" /> : <Wand2 size={15} />} Backfill WP Data
-              </button>
             </div>
-
-            {/* Backfill progress */}
-            {backfillProgress && (
-              <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem", borderLeft: "3px solid var(--warning)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: "0.8125rem" }}>
-                  <span style={{ color: "var(--text-2)" }}>Processing <strong style={{ color: "var(--text-1)" }}>{backfillProgress.processed.toLocaleString()}</strong> / {backfillProgress.total.toLocaleString()}</span>
-                  <strong style={{ color: "var(--warning)" }}>{backfillProgress.pct}%</strong>
-                </div>
-                <div style={{ height: 6, background: "var(--border)", borderRadius: 999, overflow: "hidden", marginBottom: 10 }}>
-                  <div style={{ height: "100%", width: `${backfillProgress.pct}%`, background: "var(--warning)", borderRadius: 999, transition: "width 0.25s" }} />
-                </div>
-                <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontSize: "0.8rem", color: "var(--text-2)" }}>
-                  <span>Updated: <strong style={{ color: "var(--success)" }}>{backfillProgress.updated}</strong></span>
-                  <span>Deadlines: <strong style={{ color: "var(--warning)" }}>{backfillProgress.deadline_filled}</strong></span>
-                  <span>Organisations: <strong style={{ color: "var(--primary)" }}>{backfillProgress.org_filled}</strong></span>
-                  <span>Locations: <strong>{backfillProgress.loc_filled}</strong></span>
-                </div>
-              </div>
-            )}
-
-            {/* Backfill result */}
-            {backfillResult && !backfillProgress && (
-              <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem", borderLeft: "3px solid var(--success)" }}>
-                <p style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--success)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                  <CheckCircle size={15} /> Backfill complete
-                </p>
-                <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.8125rem", color: "var(--text-2)" }}>
-                  <span>Scanned: <strong style={{ color: "var(--text-1)" }}>{backfillResult.total_wp_records.toLocaleString()}</strong></span>
-                  <span>Updated: <strong style={{ color: "var(--success)" }}>{backfillResult.records_updated.toLocaleString()}</strong></span>
-                  <span>Deadlines: <strong style={{ color: "var(--warning)" }}>{backfillResult.deadline_filled.toLocaleString()}</strong></span>
-                  <span>Orgs: <strong style={{ color: "var(--primary)" }}>{backfillResult.organization_filled.toLocaleString()}</strong></span>
-                  <span>Locations: <strong>{backfillResult.location_filled.toLocaleString()}</strong></span>
-                </div>
-              </div>
-            )}
 
             {/* Runs table */}
             <div className="card" style={{ overflow: "hidden" }}>
