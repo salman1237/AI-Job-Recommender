@@ -48,6 +48,7 @@ export default function AdminDashboard() {
   const [runsLoading, setRunsLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState<null | { processed: number; total: number; pct: number; updated: number; deadline_filled: number; org_filled: number; loc_filled: number }>(null);
   const [backfillResult, setBackfillResult] = useState<null | { records_updated: number; deadline_filled: number; organization_filled: number; location_filled: number; total_wp_records: number }>(null);
 
   const loadRuns = async () => {
@@ -71,11 +72,43 @@ export default function AdminDashboard() {
 
   const handleBackfill = async () => {
     setBackfilling(true);
+    setBackfillProgress(null);
     setBackfillResult(null);
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     try {
-      const { data } = await backfillWp();
-      setBackfillResult(data);
-      toast.success(`Backfill done — ${data.records_updated} records updated.`);
+      const resp = await fetch(`${API_URL}/admin/backfill-wp`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const ev = JSON.parse(line.slice(6));
+            if (ev.type === "start") {
+              setBackfillProgress({ processed: 0, total: ev.total, pct: 0, updated: 0, deadline_filled: 0, org_filled: 0, loc_filled: 0 });
+            } else if (ev.type === "progress") {
+              setBackfillProgress(ev);
+            } else if (ev.type === "done") {
+              setBackfillProgress(null);
+              setBackfillResult(ev);
+              toast.success(`Backfill done — ${ev.records_updated} records updated.`);
+            }
+          } catch { /* ignore malformed lines */ }
+        }
+      }
     } catch { toast.error("Backfill failed."); }
     finally { setBackfilling(false); }
   };
@@ -436,22 +469,39 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            {backfillResult && (
-              <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Scanned <strong style={{ color: "var(--text-primary)" }}>{backfillResult.total_wp_records}</strong> WP records
+            {/* Live progress bar */}
+            {backfillProgress && (
+              <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: "0.85rem" }}>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    Processing{" "}
+                    <strong style={{ color: "var(--text-primary)" }}>{backfillProgress.processed.toLocaleString()}</strong>
+                    {" "}/ {backfillProgress.total.toLocaleString()} records
+                  </span>
+                  <span style={{ fontWeight: 700, color: "#f59e0b" }}>{backfillProgress.pct}%</span>
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Updated <strong style={{ color: "#4ade80" }}>{backfillResult.records_updated}</strong> total
+                <div style={{ height: 7, background: "rgba(0,0,0,0.12)", borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${backfillProgress.pct}%`, background: "linear-gradient(90deg,#f59e0b,#d97706)", borderRadius: 999, transition: "width 0.25s ease" }} />
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Deadlines filled: <strong style={{ color: "#f59e0b" }}>{backfillResult.deadline_filled}</strong>
+                <div style={{ display: "flex", gap: "1.5rem", marginTop: 10, fontSize: "0.8rem", color: "var(--text-secondary)", flexWrap: "wrap" }}>
+                  <span>Updated: <strong style={{ color: "#4ade80" }}>{backfillProgress.updated}</strong></span>
+                  <span>Deadlines: <strong style={{ color: "#f59e0b" }}>{backfillProgress.deadline_filled}</strong></span>
+                  <span>Organisations: <strong style={{ color: "#a89aff" }}>{backfillProgress.org_filled}</strong></span>
+                  <span>Locations: <strong style={{ color: "#00d4ff" }}>{backfillProgress.loc_filled}</strong></span>
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Organisations filled: <strong style={{ color: "#a89aff" }}>{backfillResult.organization_filled}</strong>
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Locations filled: <strong style={{ color: "#00d4ff" }}>{backfillResult.location_filled}</strong>
+              </div>
+            )}
+
+            {/* Final result */}
+            {backfillResult && !backfillProgress && (
+              <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem", borderLeft: "3px solid #4ade80" }}>
+                <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#4ade80", marginBottom: 8 }}>Backfill complete</p>
+                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                  <span>Scanned: <strong style={{ color: "var(--text-primary)" }}>{backfillResult.total_wp_records.toLocaleString()}</strong></span>
+                  <span>Updated: <strong style={{ color: "#4ade80" }}>{backfillResult.records_updated.toLocaleString()}</strong></span>
+                  <span>Deadlines filled: <strong style={{ color: "#f59e0b" }}>{backfillResult.deadline_filled.toLocaleString()}</strong></span>
+                  <span>Organisations filled: <strong style={{ color: "#a89aff" }}>{backfillResult.organization_filled.toLocaleString()}</strong></span>
+                  <span>Locations filled: <strong style={{ color: "#00d4ff" }}>{backfillResult.location_filled.toLocaleString()}</strong></span>
                 </div>
               </div>
             )}

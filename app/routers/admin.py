@@ -1,4 +1,8 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,58 +35,92 @@ async def trigger_emails(background_tasks: BackgroundTasks):
 
 
 @router.post("/backfill-wp", dependencies=[Depends(require_admin)])
-async def backfill_wp_fields(session: AsyncSession = Depends(get_session)):
+async def backfill_wp_fields():
     """
-    Re-extract deadline, organization, and location from the stored raw JSON
-    of all WordPress-sourced opportunities. Only fills currently-null fields.
-    No external API calls — uses the raw column already in the DB.
+    Stream SSE progress while re-extracting deadline, organization, and location
+    from stored raw JSON of all WordPress-sourced opportunities.
+    Yields: start → progress (every 50 rows) → done events.
     """
+    from app.db import async_session
     from app.models import Opportunity
 
-    WP_SOURCES = {"opportunitydesk", "opp4youth", "opp4africans", "uri_fellowships"}
-    stmt = select(Opportunity).where(Opportunity.source.in_(WP_SOURCES))
-    rows = (await session.scalars(stmt)).all()
+    def _sse(payload: dict) -> str:
+        return f"data: {json.dumps(payload)}\n\n"
 
-    updated = deadline_filled = org_filled = loc_filled = 0
-    for opp in rows:
-        if not opp.raw:
-            continue
-        content_html = (opp.raw.get("content") or {}).get("rendered")
-        class_list = opp.raw.get("class_list")
-        changed = False
+    async def generate():
+        WP_SOURCES = {"opportunitydesk", "opp4youth", "opp4africans", "uri_fellowships"}
+        async with async_session() as session:
+            rows = (
+                await session.scalars(
+                    select(Opportunity).where(Opportunity.source.in_(WP_SOURCES))
+                )
+            ).all()
 
-        if opp.deadline is None:
-            val = _parse_deadline(content_html)
-            if val:
-                opp.deadline = val
-                deadline_filled += 1
-                changed = True
+            total = len(rows)
+            yield _sse({"type": "start", "total": total})
 
-        if not opp.organization:
-            val = _parse_organization(content_html)
-            if val:
-                opp.organization = val
-                org_filled += 1
-                changed = True
+            updated = deadline_filled = org_filled = loc_filled = 0
 
-        if not opp.location:
-            val = _parse_location(content_html, class_list)
-            if val:
-                opp.location = val
-                loc_filled += 1
-                changed = True
+            for i, opp in enumerate(rows):
+                if opp.raw:
+                    content_html = (opp.raw.get("content") or {}).get("rendered")
+                    class_list = opp.raw.get("class_list")
+                    changed = False
 
-        if changed:
-            updated += 1
+                    if opp.deadline is None:
+                        val = _parse_deadline(content_html)
+                        if val:
+                            opp.deadline = val
+                            deadline_filled += 1
+                            changed = True
 
-    await session.commit()
-    return {
-        "total_wp_records": len(rows),
-        "records_updated": updated,
-        "deadline_filled": deadline_filled,
-        "organization_filled": org_filled,
-        "location_filled": loc_filled,
-    }
+                    if not opp.organization:
+                        val = _parse_organization(content_html)
+                        if val:
+                            opp.organization = val
+                            org_filled += 1
+                            changed = True
+
+                    if not opp.location:
+                        val = _parse_location(content_html, class_list)
+                        if val:
+                            opp.location = val
+                            loc_filled += 1
+                            changed = True
+
+                    if changed:
+                        updated += 1
+
+                # Emit progress every 50 records and on the last one
+                if (i + 1) % 50 == 0 or (i + 1) == total:
+                    pct = round((i + 1) / total * 100) if total else 100
+                    yield _sse({
+                        "type": "progress",
+                        "processed": i + 1,
+                        "total": total,
+                        "pct": pct,
+                        "updated": updated,
+                        "deadline_filled": deadline_filled,
+                        "org_filled": org_filled,
+                        "loc_filled": loc_filled,
+                    })
+                    await asyncio.sleep(0)  # yield control to event loop
+
+            await session.commit()
+            yield _sse({
+                "type": "done",
+                "total_wp_records": total,
+                "records_updated": updated,
+                "deadline_filled": deadline_filled,
+                "organization_filled": org_filled,
+                "location_filled": loc_filled,
+            })
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get(
