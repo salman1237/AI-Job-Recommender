@@ -105,6 +105,8 @@ export default function AdminDashboard() {
               setBackfillProgress(null);
               setBackfillResult(ev);
               toast.success(`Backfill done — ${ev.records_updated} records updated.`);
+            } else if (ev.type === "error") {
+              toast.error(`Backfill error: ${ev.message}`);
             }
           } catch { /* ignore malformed lines */ }
         }

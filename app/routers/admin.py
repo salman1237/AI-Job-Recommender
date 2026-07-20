@@ -39,59 +39,63 @@ async def backfill_wp_fields():
     """
     Stream SSE progress while re-extracting deadline, organization, and location
     from stored raw JSON of all WordPress-sourced opportunities.
-    Yields: start → progress (every 50 rows) → done events.
+    Yields: start → progress (every 50 rows) → done | error events.
     """
     from app.db import async_session
     from app.models import Opportunity
+    from sqlalchemy import update as _update
+
+    WP_SOURCES = {"opportunitydesk", "opp4youth", "opp4africans", "uri_fellowships"}
+
+    # Load rows BEFORE starting the stream so any DB error surfaces as a proper
+    # HTTP 500 (caught by resp.ok on the frontend) rather than aborting the
+    # in-flight SSE connection and triggering an opaque network error.
+    async with async_session() as session:
+        rows = (
+            await session.scalars(
+                select(Opportunity).where(Opportunity.source.in_(WP_SOURCES))
+            )
+        ).all()
 
     def _sse(payload: dict) -> str:
         return f"data: {json.dumps(payload)}\n\n"
 
     async def generate():
-        WP_SOURCES = {"opportunitydesk", "opp4youth", "opp4africans", "uri_fellowships"}
-        async with async_session() as session:
-            rows = (
-                await session.scalars(
-                    select(Opportunity).where(Opportunity.source.in_(WP_SOURCES))
-                )
-            ).all()
-
+        try:
             total = len(rows)
             yield _sse({"type": "start", "total": total})
 
             updated = deadline_filled = org_filled = loc_filled = 0
+            pending: list[tuple[int, dict]] = []  # (id, {field: new_value})
 
             for i, opp in enumerate(rows):
                 if opp.raw:
                     content_html = (opp.raw.get("content") or {}).get("rendered")
                     class_list = opp.raw.get("class_list")
-                    changed = False
+                    patch: dict = {}
 
                     if opp.deadline is None:
                         val = _parse_deadline(content_html)
                         if val:
-                            opp.deadline = val
+                            patch["deadline"] = val
                             deadline_filled += 1
-                            changed = True
 
                     if not opp.organization:
                         val = _parse_organization(content_html)
                         if val:
-                            opp.organization = val
+                            patch["organization"] = val
                             org_filled += 1
-                            changed = True
 
                     if not opp.location:
                         val = _parse_location(content_html, class_list)
                         if val:
-                            opp.location = val
+                            patch["location"] = val
                             loc_filled += 1
-                            changed = True
 
-                    if changed:
+                    if patch:
+                        pending.append((opp.id, patch))
                         updated += 1
 
-                # Emit progress every 50 records and on the last one
                 if (i + 1) % 50 == 0 or (i + 1) == total:
                     pct = round((i + 1) / total * 100) if total else 100
                     yield _sse({
@@ -104,9 +108,20 @@ async def backfill_wp_fields():
                         "org_filled": org_filled,
                         "loc_filled": loc_filled,
                     })
-                    await asyncio.sleep(0)  # yield control to event loop
+                    await asyncio.sleep(0)
 
-            await session.commit()
+            # Commit all changes in a short-lived session (no session held open
+            # during the long parse/yield loop above).
+            if pending:
+                async with async_session() as session:
+                    for opp_id, patch in pending:
+                        await session.execute(
+                            _update(Opportunity)
+                            .where(Opportunity.id == opp_id)
+                            .values(**patch)
+                        )
+                    await session.commit()
+
             yield _sse({
                 "type": "done",
                 "total_wp_records": total,
@@ -115,6 +130,8 @@ async def backfill_wp_fields():
                 "organization_filled": org_filled,
                 "location_filled": loc_filled,
             })
+        except Exception as exc:
+            yield _sse({"type": "error", "message": str(exc)})
 
     return StreamingResponse(
         generate(),
