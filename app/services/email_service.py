@@ -98,6 +98,46 @@ def generate_excel_attachment(opportunities) -> bytes:
     wb.save(output)
     return output.getvalue()
 
+async def send_otp_email(to_email: str, otp: str):
+    """Send a 6-digit OTP verification code to a new user."""
+    plain = (
+        f"Your AI Job Recommender verification code is: {otp}\n"
+        "This code expires in 10 minutes. Do not share it with anyone."
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:480px;margin:48px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+    <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:32px;text-align:center;">
+      <h1 style="margin:0;color:#fff;font-size:22px;font-weight:800;">Verify your email</h1>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">AI Job Recommender</p>
+    </div>
+    <div style="background:#fff;padding:36px 40px;text-align:center;">
+      <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+        Use the code below to complete your registration. It expires in <strong>10 minutes</strong>.
+      </p>
+      <div style="display:inline-block;background:#f5f3ff;border:2px dashed #7c3aed;border-radius:12px;padding:18px 40px;">
+        <span style="font-size:36px;font-weight:900;letter-spacing:10px;color:#4f46e5;">{otp}</span>
+      </div>
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;">
+        If you didn't request this, you can safely ignore this email.
+      </p>
+    </div>
+    <div style="background:#f9fafb;padding:16px;text-align:center;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">AI Job Recommender &bull; Do not share this code with anyone.</p>
+    </div>
+  </div>
+</body>
+</html>"""
+    await send_email_with_attachment(
+        to_email=to_email,
+        subject="Your verification code",
+        text_content=plain,
+        html_content=html,
+    )
+
+
 def _score_badge(score: int) -> str:
     if score >= 80:
         color, bg = "#166534", "#dcfce7"

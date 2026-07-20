@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import IngestionRun, Opportunity
+from app.models import IngestionRun, Opportunity, User
 from app.schemas import SourceStat, Stats
 
 router = APIRouter(tags=["meta"])
@@ -64,4 +64,6 @@ async def get_stats(session: AsyncSession = Depends(get_session)):
         for s in sources
     ]
 
-    return Stats(total=total, active=active, by_type=by_type, sources=source_stats)
+    total_users = await session.scalar(select(func.count()).select_from(User)) or 0
+
+    return Stats(total=total, active=active, by_type=by_type, sources=source_stats, total_users=total_users)

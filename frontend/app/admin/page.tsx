@@ -8,13 +8,13 @@ import { useRouter } from "next/navigation";
 import {
   Database, Play, RefreshCw, Loader2, Key,
   Search, ChevronLeft, ChevronRight, ExternalLink,
-  MapPin, Building, Calendar, Filter, BarChart2, Briefcase, Mail
+  MapPin, Building, Calendar, Filter, BarChart2, Briefcase, Mail, Users
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────
 interface Run { id: number; source: string; status: string; started_at: string; fetched: number; created: number; updated: number; }
 interface Opp { id: number; title: string; type: string; organization: string | null; location: string | null; country: string | null; deadline: string | null; posted_at: string | null; url: string; is_active: boolean; source: string; }
-interface Stats { total: number; active: number; by_type: Record<string, number>; sources?: { source: string }[]; }
+interface Stats { total: number; active: number; by_type: Record<string, number>; sources?: { source: string }[]; total_users?: number; }
 interface EmailLog { id: number; user_id: number; user_email: string; email_type: string; status: string; error_message: string | null; sent_at: string; }
 
 // ── Tab component ──────────────────────────────────────────────────────
@@ -173,6 +173,12 @@ export default function AdminDashboard() {
         {/* ── OVERVIEW TAB ─────────────────────────────────────────────── */}
         {activeTab === "overview" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1.25rem" }}>
+            <div className="glass" style={{ padding: "1.5rem", textAlign: "center" }}>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Users size={13} /> TOTAL USERS
+              </p>
+              <p style={{ fontSize: "2.5rem", fontWeight: 800, background: "linear-gradient(135deg,#f472b6,#7c6aff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{stats?.total_users ?? "—"}</p>
+            </div>
             <div className="glass" style={{ padding: "1.5rem", textAlign: "center" }}>
               <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, marginBottom: 8 }}>TOTAL OPPORTUNITIES</p>
               <p style={{ fontSize: "2.5rem", fontWeight: 800, background: "linear-gradient(135deg,#7c6aff,#00d4ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{stats?.total ?? "—"}</p>

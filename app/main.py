@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.db import engine
+from app.models import Base
 from app.routers import admin, auth, opportunities, stats, users
 from app.scheduler import start_scheduler, stop_scheduler
 
@@ -19,6 +21,9 @@ async def lifespan(app: FastAPI):
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     (Path(settings.upload_dir) / "avatars").mkdir(parents=True, exist_ok=True)
     (Path(settings.upload_dir) / "cvs").mkdir(parents=True, exist_ok=True)
+    # Create any new tables (safe — skips tables that already exist)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     start_scheduler()
     try:
         yield

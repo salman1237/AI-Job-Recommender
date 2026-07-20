@@ -76,6 +76,7 @@ class Stats(BaseModel):
     active: int
     by_type: dict[str, int]
     sources: list[SourceStat]
+    total_users: int = 0
 
 
 class RunOut(BaseModel):

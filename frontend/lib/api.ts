@@ -33,8 +33,11 @@ export const login = (email: string, password: string) =>
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
 
-export const register = (email: string, password: string, full_name: string) =>
-  api.post("/auth/register", { email, password, full_name });
+export const sendOtp = (email: string) =>
+  api.post("/auth/send-otp", { email });
+
+export const register = (email: string, password: string, full_name: string, otp: string) =>
+  api.post("/auth/register", { email, password, full_name, otp });
 
 // ── User ──────────────────────────────────────────────────────────────
 export const getMe = () => api.get("/users/me");
