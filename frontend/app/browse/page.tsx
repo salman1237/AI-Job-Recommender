@@ -5,10 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import { getOpportunities, getOpportunityTypes, getStats } from "@/lib/api";
 import toast from "react-hot-toast";
-import {
-  Search, Filter, Loader2, RefreshCw, ExternalLink,
-  MapPin, Building, Calendar, ChevronLeft, ChevronRight, Globe
-} from "lucide-react";
+import { Search, Filter, Loader2, RefreshCw, ExternalLink, MapPin, Building, Calendar, ChevronLeft, ChevronRight, Globe, X } from "lucide-react";
 
 interface Opp {
   id: number; title: string; type: string; organization: string | null;
@@ -16,33 +13,23 @@ interface Opp {
   posted_at: string | null; url: string; is_active: boolean; source: string;
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  job: "#a89aff", scholarship: "#00d4ff", fellowship: "#f472b6",
-  grant: "#4ade80", internship: "#fbbf24",
+const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  job:         { bg: "#eef2ff", text: "#4338ca" },
+  scholarship: { bg: "#f5f3ff", text: "#6d28d9" },
+  fellowship:  { bg: "#ecfeff", text: "#0e7490" },
+  grant:       { bg: "#ecfdf5", text: "#047857" },
+  internship:  { bg: "#fff7ed", text: "#c2410c" },
 };
 
 const PAGE_SIZE = 25;
-
 type SortCol = "posted_at" | "title" | "organization" | "deadline" | "type" | "source";
 type SortDir = "asc" | "desc";
 
-function SortTh({
-  label, col, sortCol, sortDir, onSort, style
-}: {
-  label: string; col: SortCol; sortCol: SortCol; sortDir: SortDir;
-  onSort: (c: SortCol) => void; style?: React.CSSProperties;
-}) {
+function SortTh({ label, col, sortCol, sortDir, onSort }: { label: string; col: SortCol; sortCol: SortCol; sortDir: SortDir; onSort: (c: SortCol) => void }) {
   const active = sortCol === col;
-  const arrow = !active ? "↕" : sortDir === "asc" ? "↑" : "↓";
   return (
-    <th onClick={() => onSort(col)} style={{
-      padding: "12px 14px", color: active ? "#7c6aff" : "var(--text-secondary)",
-      fontWeight: 600, textAlign: "left", whiteSpace: "nowrap",
-      fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em",
-      cursor: "pointer", userSelect: "none", transition: "color 0.15s",
-      ...style
-    }}>
-      {label} <span style={{ opacity: active ? 1 : 0.35, marginLeft: 3 }}>{arrow}</span>
+    <th onClick={() => onSort(col)} className={`th-sortable${active ? " th-active" : ""}`}>
+      {label} <span style={{ opacity: active ? 1 : 0.3, marginLeft: 2 }}>{active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
     </th>
   );
 }
@@ -50,16 +37,14 @@ function SortTh({
 export default function BrowsePage() {
   const { user } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    if (user === null) router.push("/login");
-  }, [user, router]);
+  useEffect(() => { if (user === null) router.push("/login"); }, [user, router]);
 
   const [opps, setOpps] = useState<Opp[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [types, setTypes] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -78,10 +63,7 @@ export default function BrowsePage() {
   const fetchOpps = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, unknown> = {
-        page, page_size: PAGE_SIZE, active_only: activeOnly,
-        sort_by: sortCol, sort_dir: sortDir,
-      };
+      const params: Record<string, unknown> = { page, page_size: PAGE_SIZE, active_only: activeOnly, sort_by: sortCol, sort_dir: sortDir };
       if (search.trim()) params.q = search.trim().split(/\s+/).slice(0, 5);
       if (filterType) params.type = filterType;
       if (filterSource) params.source = filterSource;
@@ -96,175 +78,209 @@ export default function BrowsePage() {
   useEffect(() => { fetchOpps(); }, [fetchOpps]);
 
   const handleSort = (col: SortCol) => {
-    if (col === sortCol) {
-      setSortDir(d => d === "desc" ? "asc" : "desc");
-    } else {
-      setSortCol(col);
-      setSortDir("desc");
-    }
+    if (col === sortCol) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortCol(col); setSortDir("desc"); }
     setPage(1);
   };
 
+  const clearFilters = () => {
+    setSearch(""); setFilterType(""); setFilterSource(""); setFilterCountry("");
+    setActiveOnly(true); setPage(1); setSortCol("posted_at"); setSortDir("desc");
+  };
+
+  const hasFilters = search || filterType || filterSource || filterCountry || !activeOnly;
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const today = new Date();
 
   if (!user) return null;
 
+  const MobileCard = ({ opp }: { opp: Opp }) => {
+    const expired = opp.deadline && new Date(opp.deadline) < today;
+    const tc = TYPE_COLORS[opp.type?.toLowerCase()] || { bg: "#f1f5f9", text: "#475569" };
+    return (
+      <div className="card" style={{ padding: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", background: tc.bg, color: tc.text }}>
+            {opp.type}
+          </span>
+          <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: opp.is_active ? "#ecfdf5" : "#fef2f2", color: opp.is_active ? "#065f46" : "#991b1b" }}>
+            {opp.is_active ? "Active" : "Inactive"}
+          </span>
+        </div>
+        <h3 style={{ fontSize: "0.9rem", fontWeight: 700, lineHeight: 1.4, marginBottom: 6, color: "var(--text-1)" }}>{opp.title}</h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 }}>
+          {opp.organization && <span style={{ fontSize: "0.8rem", color: "var(--text-2)", display: "flex", alignItems: "center", gap: 4 }}><Building size={11} />{opp.organization}</span>}
+          {(opp.location || opp.country) && <span style={{ fontSize: "0.8rem", color: "var(--text-2)", display: "flex", alignItems: "center", gap: 4 }}><MapPin size={11} />{opp.location || opp.country}</span>}
+          {opp.deadline && <span style={{ fontSize: "0.8rem", color: expired ? "var(--danger)" : "var(--text-2)", display: "flex", alignItems: "center", gap: 4, fontWeight: expired ? 600 : 400 }}><Calendar size={11} />{expired ? "Expired: " : ""}{new Date(opp.deadline).toLocaleDateString()}</span>}
+        </div>
+        <a href={opp.url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm"
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
+          <ExternalLink size={11} /> Apply
+        </a>
+      </div>
+    );
+  };
+
   return (
     <>
       <Navbar />
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
+      <main className="page-wrapper" style={{ maxWidth: 1280, margin: "0 auto" }}>
 
         {/* Header */}
-        <div style={{ marginBottom: "1.75rem" }}>
-          <h1 className="page-h1" style={{ fontSize: "2rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
-            <Globe style={{ color: "#7c6aff" }} size={26} /> Browse Opportunities
-          </h1>
-          <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-            Search, filter, and sort through all {total > 0 ? total.toLocaleString() + " " : ""}available opportunities.
-          </p>
+        <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.5rem" }}>
+          <div>
+            <h1 className="page-title" style={{ fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 8 }}>
+              <Globe size={22} style={{ color: "var(--primary)" }} /> Browse
+            </h1>
+            <p style={{ color: "var(--text-2)", marginTop: 4, fontSize: "0.875rem" }}>
+              {total > 0 ? `${total.toLocaleString()} opportunities` : "All opportunities"} — search, filter, and sort.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setFiltersOpen(v => !v)} className="btn btn-outline"
+              style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Filter size={14} /> Filters {hasFilters ? "•" : ""}
+            </button>
+            <button onClick={fetchOpps} disabled={loading} className="btn btn-outline btn-icon">
+              <RefreshCw size={15} className={loading ? "spinner" : ""} />
+            </button>
+          </div>
         </div>
 
-        {/* Filter bar */}
-        <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}>
-          <div style={{ flex: "1 1 220px", minWidth: 200 }}>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-              <Search size={12} /> Keyword Search
-            </label>
-            <input className="input" placeholder="Python, scholarship, Dhaka…" value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
-              onKeyDown={e => e.key === "Enter" && fetchOpps()}
-              style={{ padding: "0.6rem 0.85rem" }} />
-          </div>
+        {/* Filter panel */}
+        {filtersOpen && (
+          <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
+            <div className="filter-bar">
+              {/* Search */}
+              <div style={{ flex: "2 1 220px", minWidth: 180 }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Search</label>
+                <div style={{ position: "relative" }}>
+                  <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", pointerEvents: "none" }} />
+                  <input className="input" placeholder="keyword, location…" value={search}
+                    onChange={e => { setSearch(e.target.value); setPage(1); }}
+                    onKeyDown={e => e.key === "Enter" && fetchOpps()}
+                    style={{ paddingLeft: "2rem" }} />
+                </div>
+              </div>
 
-          <div style={{ flex: "0 1 160px" }}>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Type</label>
-            <select className="input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}
-              style={{ padding: "0.6rem 0.85rem", cursor: "pointer" }}>
-              <option value="" style={{ background: "#ffffff", color: "#0f172a" }}>All types</option>
-              {types.map(t => <option key={t} value={t} style={{ background: "#ffffff", color: "#0f172a" }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-            </select>
-          </div>
+              {/* Type */}
+              <div style={{ flex: "1 1 130px" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Type</label>
+                <select className="input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
+                  <option value="">All types</option>
+                  {types.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                </select>
+              </div>
 
-          <div style={{ flex: "0 1 160px" }}>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Source</label>
-            <select className="input" value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1); }}
-              style={{ padding: "0.6rem 0.85rem", cursor: "pointer" }}>
-              <option value="" style={{ background: "#ffffff", color: "#0f172a" }}>All sources</option>
-              {sources.map(s => <option key={s} value={s} style={{ background: "#ffffff", color: "#0f172a" }}>{s}</option>)}
-            </select>
-          </div>
+              {/* Source */}
+              <div style={{ flex: "1 1 130px" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Source</label>
+                <select className="input" value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1); }}>
+                  <option value="">All sources</option>
+                  {sources.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
 
-          <div style={{ flex: "0 1 130px" }}>
-            <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Country</label>
-            <input className="input" placeholder="BD, US…" value={filterCountry}
-              onChange={e => { setFilterCountry(e.target.value); setPage(1); }}
-              style={{ padding: "0.6rem 0.85rem" }} />
-          </div>
+              {/* Country */}
+              <div style={{ flex: "1 1 100px" }}>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Country</label>
+                <input className="input" placeholder="US, BD…" value={filterCountry} onChange={e => { setFilterCountry(e.target.value); setPage(1); }} />
+              </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem", color: activeOnly ? "var(--text-primary)" : "var(--text-secondary)", paddingBottom: 2 }}>
-            <div onClick={() => { setActiveOnly(v => !v); setPage(1); }}
-              style={{ width: 38, height: 20, borderRadius: 999, background: activeOnly ? "#6366f1" : "rgba(0,0,0,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 2, left: activeOnly ? "calc(100% - 18px)" : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+              {/* Active only */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, justifyContent: "flex-end", paddingBottom: 1 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none", fontSize: "0.8125rem" }}>
+                  <button type="button" role="switch" aria-checked={activeOnly}
+                    onClick={() => { setActiveOnly(v => !v); setPage(1); }}
+                    className={`toggle${activeOnly ? " on" : ""}`} />
+                  Active only
+                </label>
+              </div>
+
+              <div style={{ display: "flex", gap: 6, alignItems: "flex-end", paddingBottom: 1 }}>
+                <button onClick={() => { setPage(1); fetchOpps(); }} className="btn btn-primary"
+                  style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  {loading ? <Loader2 size={14} className="spinner" /> : <Filter size={14} />} Apply
+                </button>
+                {hasFilters && (
+                  <button onClick={clearFilters} className="btn btn-outline"
+                    style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <X size={13} /> Clear
+                  </button>
+                )}
+              </div>
             </div>
-            Active only
-          </label>
+          </div>
+        )}
 
-          <button onClick={() => { setPage(1); fetchOpps(); }} className="btn-primary"
-            style={{ height: 38, display: "flex", alignItems: "center", gap: 6, paddingTop: 0, paddingBottom: 0 }}>
-            {loading ? <Loader2 size={15} className="spinner" /> : <Filter size={15} />} Apply
-          </button>
-
-          <button onClick={() => {
-            setSearch(""); setFilterType(""); setFilterSource(""); setFilterCountry("");
-            setActiveOnly(true); setPage(1); setSortCol("posted_at"); setSortDir("desc");
-          }} className="btn-ghost" style={{ height: 38, fontSize: "0.82rem", paddingTop: 0, paddingBottom: 0 }}>
-            Clear
-          </button>
-        </div>
-
-        {/* Result count + refresh */}
-        <div style={{ marginBottom: "0.75rem", color: "var(--text-secondary)", fontSize: "0.85rem", display: "flex", justifyContent: "space-between" }}>
+        {/* Results count */}
+        <div style={{ marginBottom: "0.75rem", fontSize: "0.8125rem", color: "var(--text-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>
-            {loading ? "Loading…" : <><strong style={{ color: "var(--text-primary)" }}>{total.toLocaleString()}</strong> results · page {page}/{totalPages || 1}</>}
+            {loading ? "Loading…" : <><strong style={{ color: "var(--text-1)" }}>{total.toLocaleString()}</strong> results · page {page} of {totalPages || 1}</>}
           </span>
-          <button onClick={fetchOpps} className="btn-ghost" style={{ padding: "4px 10px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 5 }}>
-            <RefreshCw size={12} /> Refresh
-          </button>
         </div>
 
-        {/* Table */}
-        <div className="glass" style={{ overflow: "hidden" }}>
+        {/* Desktop table */}
+        <div className="card desktop-table" style={{ overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 820 }}>
+            <table className="data-table" style={{ minWidth: 820 }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(0,0,0,0.02)" }}>
+                <tr>
                   <SortTh label="Type" col="type" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <SortTh label="Title" col="title" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <SortTh label="Organisation" col="organization" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                  <th style={{ padding: "12px 14px", color: "var(--text-secondary)", fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Location</th>
+                  <th>Location</th>
                   <SortTh label="Deadline" col="deadline" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                   <SortTh label="Source" col="source" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                  <th style={{ padding: "12px 14px", color: "var(--text-secondary)", fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Status</th>
-                  <th style={{ padding: "12px 14px" }} />
+                  <th>Status</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr><td colSpan={8} style={{ padding: "3rem", textAlign: "center" }}>
-                    <Loader2 size={28} className="spinner" style={{ margin: "0 auto", color: "#7c6aff" }} />
+                    <Loader2 size={26} className="spinner" style={{ color: "var(--primary)", margin: "0 auto" }} />
                   </td></tr>
                 ) : opps.length === 0 ? (
-                  <tr><td colSpan={8} style={{ padding: "3rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                  <tr><td colSpan={8} style={{ padding: "3rem", textAlign: "center", color: "var(--text-2)" }}>
                     No opportunities match the current filters.
                   </td></tr>
-                ) : opps.map((opp, i) => {
+                ) : opps.map(opp => {
                   const expired = opp.deadline && new Date(opp.deadline) < today;
-                  const color = TYPE_COLORS[opp.type?.toLowerCase()] || "#aaa";
+                  const tc = TYPE_COLORS[opp.type?.toLowerCase()] || { bg: "#f1f5f9", text: "#475569" };
                   return (
-                    <tr key={opp.id}
-                      style={{ borderBottom: "1px solid rgba(0,0,0,0.04)", background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)", transition: "background 0.1s" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.03)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)")}>
-
-                      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                        <span style={{ padding: "3px 9px", borderRadius: 6, fontSize: "0.72rem", fontWeight: 700, textTransform: "capitalize", background: `${color}22`, color }}>{opp.type}</span>
+                    <tr key={opp.id}>
+                      <td>
+                        <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", background: tc.bg, color: tc.text }}>
+                          {opp.type}
+                        </span>
                       </td>
-
-                      <td style={{ padding: "11px 14px", maxWidth: 300 }}>
-                        <span style={{ fontWeight: 600, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{opp.title}</span>
+                      <td style={{ maxWidth: 300 }}>
+                        <span className="truncate-2" style={{ fontWeight: 600, lineHeight: 1.4 }}>{opp.title}</span>
                       </td>
-
-                      <td style={{ padding: "11px 14px", color: "var(--text-secondary)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {opp.organization ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Building size={12} />{opp.organization}</span> : "—"}
+                      <td style={{ color: "var(--text-2)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {opp.organization ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Building size={11} />{opp.organization}</span> : "—"}
                       </td>
-
-                      <td style={{ padding: "11px 14px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {opp.location || opp.country ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} />{opp.location || opp.country}</span> : "—"}
+                      <td style={{ color: "var(--text-2)", whiteSpace: "nowrap" }}>
+                        {opp.location || opp.country ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={11} />{opp.location || opp.country}</span> : "—"}
                       </td>
-
-                      <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                      <td style={{ whiteSpace: "nowrap" }}>
                         {opp.deadline ? (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, color: expired ? "#ef4444" : "var(--text-secondary)", fontWeight: expired ? 600 : 400 }}>
-                            <Calendar size={12} />{new Date(opp.deadline).toLocaleDateString()}
-                            {expired && <span style={{ fontSize: "0.7rem", background: "rgba(239,68,68,0.12)", color: "#ef4444", padding: "1px 6px", borderRadius: 4 }}>Expired</span>}
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, color: expired ? "var(--danger)" : "var(--text-2)", fontWeight: expired ? 600 : 400 }}>
+                            <Calendar size={11} />{new Date(opp.deadline).toLocaleDateString()}
+                            {expired && <span style={{ fontSize: "0.67rem", background: "var(--danger-muted)", color: "var(--danger)", padding: "1px 5px", borderRadius: 3 }}>Expired</span>}
                           </span>
                         ) : "—"}
                       </td>
-
-                      <td style={{ padding: "11px 14px", color: "var(--text-secondary)", fontSize: "0.8rem" }}>{opp.source}</td>
-
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: opp.is_active ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)", color: opp.is_active ? "#4ade80" : "#f87171" }}>
+                      <td style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>{opp.source}</td>
+                      <td>
+                        <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: opp.is_active ? "#ecfdf5" : "#fef2f2", color: opp.is_active ? "#065f46" : "#991b1b" }}>
                           {opp.is_active ? "Active" : "Inactive"}
                         </span>
                       </td>
-
-                      <td style={{ padding: "11px 14px" }}>
-                        <a href={opp.url} target="_blank" rel="noreferrer"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.8rem", transition: "all 0.15s" }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)"; (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; }}>
+                      <td>
+                        <a href={opp.url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
                           <ExternalLink size={11} /> Apply
                         </a>
                       </td>
@@ -277,31 +293,50 @@ export default function BrowsePage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ padding: "1rem 1.25rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ghost"
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", opacity: page === 1 ? 0.4 : 1 }}>
-                <ChevronLeft size={16} /> Prev
+            <div style={{ padding: "0.875rem 1rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-outline btn-sm"
+                style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <ChevronLeft size={14} /> Prev
               </button>
-
-              <div className="pagination-numbers" style={{ display: "flex", gap: 4 }}>
+              <div className="pagination-nums" style={{ display: "flex", gap: 4 }}>
                 {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
                   let p: number;
                   if (totalPages <= 7) p = i + 1;
                   else if (page <= 4) p = i + 1;
                   else if (page >= totalPages - 3) p = totalPages - 6 + i;
                   else p = page - 3 + i;
-                  return (
-                    <button key={p} onClick={() => setPage(p)}
-                      style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${p === page ? "var(--accent)" : "var(--border)"}`, background: p === page ? "rgba(124,106,255,0.15)" : "transparent", color: p === page ? "#fff" : "var(--text-secondary)", cursor: "pointer", fontSize: "0.85rem", fontWeight: p === page ? 700 : 400, transition: "all 0.15s" }}>
-                      {p}
-                    </button>
-                  );
+                  return <button key={p} onClick={() => setPage(p)} className={`page-btn${p === page ? " active" : ""}`}>{p}</button>;
                 })}
               </div>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-outline btn-sm"
+                style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
 
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost"
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", opacity: page === totalPages ? 0.4 : 1 }}>
-                Next <ChevronRight size={16} />
+        {/* Mobile card list */}
+        <div className="mobile-cards">
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "2rem" }}>
+              <Loader2 size={26} className="spinner" style={{ color: "var(--primary)", margin: "0 auto" }} />
+            </div>
+          ) : opps.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-2)" }}>No opportunities match the current filters.</div>
+          ) : opps.map(opp => <MobileCard key={opp.id} opp={opp} />)}
+
+          {/* Mobile pagination */}
+          {totalPages > 1 && !loading && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.5rem" }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-outline btn-sm"
+                style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <ChevronLeft size={14} /> Prev
+              </button>
+              <span style={{ fontSize: "0.8125rem", color: "var(--text-2)" }}>{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-outline btn-sm"
+                style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                Next <ChevronRight size={14} />
               </button>
             </div>
           )}

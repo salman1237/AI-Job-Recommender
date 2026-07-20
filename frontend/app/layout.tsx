@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-mesh min-h-screen">
+      <body className="min-h-screen">
         <AuthProvider>
           {children}
           <Toaster
@@ -25,9 +25,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               style: {
                 background: "#ffffff",
                 color: "#0f172a",
-                border: "1px solid rgba(0,0,0,0.1)",
-                borderRadius: "12px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "10px",
                 fontSize: "0.875rem",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
               },
             }}
           />

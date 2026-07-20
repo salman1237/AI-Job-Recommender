@@ -1,44 +1,25 @@
 export default function SkeletonCard() {
   return (
-    <div
-      className="glass"
-      style={{
-        padding: "1.4rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.85rem",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Header row: type badge + score badge */}
+    <div className="card" style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div className="skeleton-block" style={{ height: 22, width: 72 }} />
-        <div className="skeleton-block" style={{ height: 22, width: 52, borderRadius: 999 }} />
+        <div className="skeleton" style={{ width: 80, height: 22 }} />
+        <div className="skeleton" style={{ width: 60, height: 22, borderRadius: 999 }} />
       </div>
-
-      {/* Title lines */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div className="skeleton-block" style={{ height: 16, width: "90%" }} />
-        <div className="skeleton-block" style={{ height: 16, width: "65%" }} />
+        <div className="skeleton" style={{ width: "90%", height: 18 }} />
+        <div className="skeleton" style={{ width: "65%", height: 18 }} />
       </div>
-
-      {/* Meta row: org / location / date */}
-      <div style={{ display: "flex", gap: 12 }}>
-        <div className="skeleton-block" style={{ height: 13, width: 90 }} />
-        <div className="skeleton-block" style={{ height: 13, width: 70 }} />
-        <div className="skeleton-block" style={{ height: 13, width: 80 }} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div className="skeleton" style={{ width: 110, height: 16, borderRadius: 999 }} />
+        <div className="skeleton" style={{ width: 90, height: 16, borderRadius: 999 }} />
+        <div className="skeleton" style={{ width: 100, height: 16, borderRadius: 999 }} />
       </div>
-
-      {/* Reason block */}
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <div className="skeleton-block" style={{ height: 12, width: "100%" }} />
-        <div className="skeleton-block" style={{ height: 12, width: "80%" }} />
-        <div className="skeleton-block" style={{ height: 12, width: "55%" }} />
+        <div className="skeleton" style={{ width: "100%", height: 13 }} />
+        <div className="skeleton" style={{ width: "85%", height: 13 }} />
+        <div className="skeleton" style={{ width: "70%", height: 13 }} />
       </div>
-
-      {/* Button */}
-      <div className="skeleton-block" style={{ height: 40, width: "100%", borderRadius: 10, marginTop: "auto" }} />
+      <div className="skeleton" style={{ width: "100%", height: 38, marginTop: "auto" }} />
     </div>
   );
 }

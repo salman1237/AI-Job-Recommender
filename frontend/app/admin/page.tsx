@@ -1,35 +1,47 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { triggerIngest, triggerEmails, backfillWp, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs } from "@/lib/api";
+import {
+  triggerIngest, triggerEmails, backfillWp, getIngestionRuns,
+  getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs
+} from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import {
-  Database, Play, RefreshCw, Loader2, Key,
-  Search, ChevronLeft, ChevronRight, ExternalLink,
-  MapPin, Building, Calendar, Filter, BarChart2, Briefcase, Mail, Users, Wand2
+  Database, Play, RefreshCw, Loader2, Search, ChevronLeft, ChevronRight,
+  ExternalLink, MapPin, Building, Calendar, Filter, BarChart2, Briefcase,
+  Mail, Users, Wand2, X, TrendingUp, CheckCircle
 } from "lucide-react";
 
-// ── Types ──────────────────────────────────────────────────────────────
 interface Run { id: number; source: string; status: string; started_at: string; fetched: number; created: number; updated: number; }
 interface Opp { id: number; title: string; type: string; organization: string | null; location: string | null; country: string | null; deadline: string | null; posted_at: string | null; url: string; is_active: boolean; source: string; }
 interface Stats { total: number; active: number; by_type: Record<string, number>; sources?: { source: string }[]; total_users?: number; }
 interface EmailLog { id: number; user_id: number; user_email: string; email_type: string; status: string; error_message: string | null; sent_at: string; }
 
-// ── Tab component ──────────────────────────────────────────────────────
-function Tab({ label, active, onClick, icon: Icon }: { label: string; active: boolean; onClick: () => void; icon: any }) {
+const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
+  job:         { bg: "#eef2ff", text: "#4338ca" },
+  scholarship: { bg: "#f5f3ff", text: "#6d28d9" },
+  fellowship:  { bg: "#ecfeff", text: "#0e7490" },
+  grant:       { bg: "#ecfdf5", text: "#047857" },
+  internship:  { bg: "#fff7ed", text: "#c2410c" },
+};
+
+const PAGE_SIZE = 25;
+
+function StatCard({ label, value, color, icon: Icon }: { label: string; value: string | number; color?: string; icon: any }) {
   return (
-    <button onClick={onClick} style={{
-      display: "flex", alignItems: "center", gap: 8,
-      padding: "10px 20px", borderRadius: 10, fontSize: "0.9rem", fontWeight: 600,
-      background: active ? "rgba(124,106,255,0.15)" : "transparent",
-      color: active ? "#fff" : "var(--text-secondary)",
-      border: `1px solid ${active ? "rgba(124,106,255,0.4)" : "transparent"}`,
-      cursor: "pointer", transition: "all 0.15s",
-    }}>
-      <Icon size={16} /> {label}
-    </button>
+    <div className="stat-card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-2)" }}>{label}</span>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={15} style={{ color: color || "var(--text-2)" }} />
+        </div>
+      </div>
+      <p style={{ fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.03em", color: color || "var(--text-1)", lineHeight: 1 }}>
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </p>
+    </div>
   );
 }
 
@@ -38,12 +50,15 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "jobs" | "ingest" | "emails">("overview");
 
-  // ── Auth guard ──────────────────────────────────────────────────────
   useEffect(() => {
     if (user && user.role !== "admin") router.push("/opportunities");
   }, [user, router]);
 
-  // ── Ingest state ────────────────────────────────────────────────────
+  // Stats
+  const [stats, setStats] = useState<Stats | null>(null);
+  useEffect(() => { getStats().then(r => setStats(r.data)).catch(() => {}); }, []);
+
+  // Ingest
   const [runs, setRuns] = useState<Run[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
@@ -53,40 +68,28 @@ export default function AdminDashboard() {
 
   const loadRuns = async () => {
     setRunsLoading(true);
-    try {
-      const { data } = await getIngestionRuns();
-      setRuns(data);
-    } catch { toast.error("Failed to load runs."); }
+    try { const { data } = await getIngestionRuns(); setRuns(data); }
+    catch { toast.error("Failed to load runs."); }
     finally { setRunsLoading(false); }
   };
 
   const handleTrigger = async () => {
     setTriggering(true);
-    try {
-      await triggerIngest();
-      toast.success("Ingestion triggered in background!");
-      setTimeout(loadRuns, 2500);
-    } catch { toast.error("Failed to trigger ingestion"); }
+    try { await triggerIngest(); toast.success("Ingestion triggered in background!"); setTimeout(loadRuns, 2500); }
+    catch { toast.error("Failed to trigger ingestion"); }
     finally { setTriggering(false); }
   };
 
   const handleBackfill = async () => {
-    setBackfilling(true);
-    setBackfillProgress(null);
-    setBackfillResult(null);
+    setBackfilling(true); setBackfillProgress(null); setBackfillResult(null);
     const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
     const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     try {
-      const resp = await fetch(`${API_URL}/admin/backfill-wp`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const resp = await fetch(`${API_URL}/admin/backfill-wp`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
       if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
-
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -97,64 +100,43 @@ export default function AdminDashboard() {
           if (!line.startsWith("data: ")) continue;
           try {
             const ev = JSON.parse(line.slice(6));
-            if (ev.type === "start") {
-              setBackfillProgress({ processed: 0, total: ev.total, pct: 0, updated: 0, deadline_filled: 0, org_filled: 0, loc_filled: 0 });
-            } else if (ev.type === "progress") {
-              setBackfillProgress(ev);
-            } else if (ev.type === "done") {
-              setBackfillProgress(null);
-              setBackfillResult(ev);
-              toast.success(`Backfill done — ${ev.records_updated} records updated.`);
-            } else if (ev.type === "error") {
-              toast.error(`Backfill error: ${ev.message}`);
-            }
-          } catch { /* ignore malformed lines */ }
+            if (ev.type === "start") setBackfillProgress({ processed: 0, total: ev.total, pct: 0, updated: 0, deadline_filled: 0, org_filled: 0, loc_filled: 0 });
+            else if (ev.type === "progress") setBackfillProgress(ev);
+            else if (ev.type === "done") { setBackfillProgress(null); setBackfillResult(ev); toast.success(`Backfill done — ${ev.records_updated} records updated.`); }
+            else if (ev.type === "error") toast.error(`Backfill error: ${ev.message}`);
+          } catch { /* ignore */ }
         }
       }
     } catch (err: unknown) { toast.error(`Backfill failed: ${(err as Error)?.message ?? "network error"}`); }
     finally { setBackfilling(false); }
   };
 
-  // ── Email Logs state ────────────────────────────────────────────────
+  // Emails
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [emailLogsLoading, setEmailLogsLoading] = useState(false);
   const [triggeringEmails, setTriggeringEmails] = useState(false);
 
   const loadEmailLogs = useCallback(async () => {
     setEmailLogsLoading(true);
-    try {
-      const { data } = await getEmailLogs();
-      setEmailLogs(data);
-    } catch { toast.error("Failed to load email logs."); }
+    try { const { data } = await getEmailLogs(); setEmailLogs(data); }
+    catch { toast.error("Failed to load email logs."); }
     finally { setEmailLogsLoading(false); }
   }, []);
 
-  useEffect(() => {
-    if (activeTab === "emails") loadEmailLogs();
-  }, [activeTab, loadEmailLogs]);
+  useEffect(() => { if (activeTab === "emails") loadEmailLogs(); }, [activeTab, loadEmailLogs]);
 
   const handleTriggerEmails = async () => {
     setTriggeringEmails(true);
-    try {
-      await triggerEmails();
-      toast.success("Emails triggered in background!");
-      setTimeout(loadEmailLogs, 2500);
-    } catch { toast.error("Failed to trigger emails"); }
+    try { await triggerEmails(); toast.success("Emails triggered in background!"); setTimeout(loadEmailLogs, 2500); }
+    catch { toast.error("Failed to trigger emails"); }
     finally { setTriggeringEmails(false); }
   };
 
-  // ── Overview / Stats ────────────────────────────────────────────────
-  const [stats, setStats] = useState<Stats | null>(null);
-  useEffect(() => {
-    getStats().then(r => setStats(r.data)).catch(() => {});
-  }, []);
-
-  // ── Jobs browser state ──────────────────────────────────────────────
+  // Opportunities browser
   const [opps, setOpps] = useState<Opp[]>([]);
   const [total, setTotal] = useState(0);
   const [oppsLoading, setOppsLoading] = useState(false);
   const [types, setTypes] = useState<string[]>([]);
-
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterSource, setFilterSource] = useState("");
@@ -163,21 +145,8 @@ export default function AdminDashboard() {
   const [sortCol, setSortCol] = useState("posted_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 25;
 
-  useEffect(() => {
-    getOpportunityTypes().then(r => setTypes(r.data.types)).catch(() => {});
-  }, []);
-
-  const handleSort = (col: string) => {
-    if (col === sortCol) {
-      setSortDir(d => d === "desc" ? "asc" : "desc");
-    } else {
-      setSortCol(col);
-      setSortDir("desc");
-    }
-    setPage(1);
-  };
+  useEffect(() => { getOpportunityTypes().then(r => setTypes(r.data.types)).catch(() => {}); }, []);
 
   const fetchOpps = useCallback(async () => {
     setOppsLoading(true);
@@ -189,228 +158,188 @@ export default function AdminDashboard() {
       if (filterCountry) params.country = filterCountry;
       if (activeOnly) params.active_only = true;
       const { data } = await getAdminOpportunities(params);
-      setOpps(data.items);
-      setTotal(data.total);
+      setOpps(data.items); setTotal(data.total);
     } catch { toast.error("Failed to load opportunities"); }
     finally { setOppsLoading(false); }
   }, [page, search, filterType, filterSource, filterCountry, activeOnly, sortCol, sortDir]);
 
-  useEffect(() => {
-    if (activeTab === "jobs") fetchOpps();
-  }, [activeTab, fetchOpps]);
+  useEffect(() => { if (activeTab === "jobs") fetchOpps(); }, [activeTab, fetchOpps]);
+
+  const handleSort = (col: string) => {
+    if (col === sortCol) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortCol(col); setSortDir("desc"); }
+    setPage(1);
+  };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const today = new Date();
 
   if (!user || user.role !== "admin") return null;
 
-  const TYPE_COLORS: Record<string, string> = {
-    job: "#a89aff", scholarship: "#00d4ff", fellowship: "#f472b6",
-    grant: "#4ade80", internship: "#fbbf24",
+  const tabs = [
+    { id: "overview", label: "Overview",    icon: BarChart2 },
+    { id: "jobs",     label: "Opportunities", icon: Briefcase },
+    { id: "ingest",   label: "Ingestion",   icon: Database },
+    { id: "emails",   label: "Email Logs",  icon: Mail },
+  ] as const;
+
+  const SortTh = ({ label, col }: { label: string; col: string }) => {
+    const active = sortCol === col;
+    return (
+      <th onClick={() => handleSort(col)} className={`th-sortable${active ? " th-active" : ""}`}>
+        {label} <span style={{ opacity: active ? 1 : 0.3, marginLeft: 2 }}>{active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
+      </th>
+    );
   };
 
   return (
     <>
       <Navbar />
-      <main className="main-pad" style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
+      <main className="page-wrapper" style={{ maxWidth: 1280, margin: "0 auto" }}>
 
-        {/* Page header */}
-        <div style={{ marginBottom: "1.75rem" }}>
-          <h1 className="page-h1" style={{ fontSize: "2rem", fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
-            <Database style={{ color: "#7c6aff" }} size={26} /> Admin Dashboard
+        {/* Header */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 className="page-title" style={{ fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 8 }}>
+            <Database size={22} style={{ color: "var(--primary)" }} /> Admin Dashboard
           </h1>
-          <p style={{ color: "var(--text-secondary)", marginTop: 4 }}>Manage ingestion, browse and filter all opportunities.</p>
+          <p style={{ color: "var(--text-2)", marginTop: 4, fontSize: "0.875rem" }}>
+            Manage ingestion, browse all opportunities, and monitor email deliveries.
+          </p>
         </div>
 
-        {/* Tabs */}
-        <div className="tabs-row" style={{ display: "flex", gap: 8, marginBottom: "1.75rem", flexWrap: "wrap" }}>
-          <Tab label="Overview" icon={BarChart2} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
-          <Tab label="All Opportunities" icon={Briefcase} active={activeTab === "jobs"} onClick={() => setActiveTab("jobs")} />
-          <Tab label="Ingestion" icon={Play} active={activeTab === "ingest"} onClick={() => setActiveTab("ingest")} />
-          <Tab label="Email Logs" icon={Mail} active={activeTab === "emails"} onClick={() => setActiveTab("emails")} />
+        {/* Tab bar */}
+        <div className="tab-bar" style={{ display: "flex", gap: 6, marginBottom: "1.5rem", flexWrap: "wrap" }}>
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setActiveTab(id as any)} className={`tab-btn${activeTab === id ? " active" : ""}`}>
+              <Icon size={15} /> {label}
+            </button>
+          ))}
         </div>
 
-        {/* ── OVERVIEW TAB ─────────────────────────────────────────────── */}
+        {/* ── OVERVIEW ── */}
         {activeTab === "overview" && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "1.25rem" }}>
-            <div className="glass" style={{ padding: "1.5rem", textAlign: "center" }}>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <Users size={13} /> TOTAL USERS
-              </p>
-              <p style={{ fontSize: "2.5rem", fontWeight: 800, background: "linear-gradient(135deg,#f472b6,#7c6aff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{stats?.total_users ?? "—"}</p>
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+              <StatCard label="Total Users" value={stats?.total_users ?? "—"} color="var(--primary)" icon={Users} />
+              <StatCard label="Total Opportunities" value={stats?.total ?? "—"} icon={Briefcase} />
+              <StatCard label="Active" value={stats?.active ?? "—"} color="var(--success)" icon={TrendingUp} />
+              {stats && Object.entries(stats.by_type).sort((a, b) => b[1] - a[1]).map(([t, count]) => {
+                const tc = TYPE_COLORS[t] || { text: "var(--text-2)" };
+                return <StatCard key={t} label={t} value={count} color={tc.text} icon={Briefcase} />;
+              })}
             </div>
-            <div className="glass" style={{ padding: "1.5rem", textAlign: "center" }}>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, marginBottom: 8 }}>TOTAL OPPORTUNITIES</p>
-              <p style={{ fontSize: "2.5rem", fontWeight: 800, background: "linear-gradient(135deg,#7c6aff,#00d4ff)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{stats?.total ?? "—"}</p>
-            </div>
-            <div className="glass" style={{ padding: "1.5rem", textAlign: "center" }}>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", fontWeight: 600, marginBottom: 8 }}>ACTIVE</p>
-              <p style={{ fontSize: "2.5rem", fontWeight: 800, color: "#22c55e" }}>{stats?.active ?? "—"}</p>
-            </div>
-            {stats && Object.entries(stats.by_type).sort((a, b) => b[1] - a[1]).map(([t, count]) => (
-              <div key={t} className="glass" style={{ padding: "1.5rem", textAlign: "center" }}>
-                <p style={{ color: TYPE_COLORS[t] || "#aaa", fontSize: "0.8rem", fontWeight: 600, marginBottom: 8, textTransform: "uppercase" }}>{t}</p>
-                <p style={{ fontSize: "2.5rem", fontWeight: 800 }}>{count}</p>
-              </div>
-            ))}
           </div>
         )}
 
-        {/* ── JOBS TAB ─────────────────────────────────────────────────── */}
+        {/* ── OPPORTUNITIES ── */}
         {activeTab === "jobs" && (
           <div>
-            {/* Filter bar */}
-            <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}>
-              {/* Search */}
-              <div style={{ flex: "1 1 220px", minWidth: 200 }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                  <Search size={12} /> Keyword Search
-                </label>
-                <input className="input" placeholder="Python, scholarship, Dhaka…" value={search}
-                  onChange={e => { setSearch(e.target.value); setPage(1); }}
-                  onKeyDown={e => e.key === "Enter" && fetchOpps()}
-                  style={{ padding: "0.6rem 0.85rem" }}
-                />
-              </div>
-
-              {/* Type */}
-              <div style={{ flex: "0 1 160px" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Type</label>
-                <select className="input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}
-                  style={{ padding: "0.6rem 0.85rem", cursor: "pointer" }}>
-                  <option value="" style={{ background: "#ffffff", color: "#0f172a" }}>All types</option>
-                  {types.map(t => <option key={t} value={t} style={{ background: "#ffffff", color: "#0f172a" }}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-                </select>
-              </div>
-
-              {/* Source */}
-              <div style={{ flex: "0 1 160px" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Source</label>
-                <select className="input" value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1); }}
-                  style={{ padding: "0.6rem 0.85rem", cursor: "pointer" }}>
-                  <option value="" style={{ background: "#ffffff", color: "#0f172a" }}>All sources</option>
-                  {stats?.sources?.map((s: any) => <option key={s.source} value={s.source} style={{ background: "#ffffff", color: "#0f172a" }}>{s.source}</option>)}
-                </select>
-              </div>
-
-              {/* Country */}
-              <div style={{ flex: "0 1 140px" }}>
-                <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" }}>Country</label>
-                <input className="input" placeholder="BD, US…" value={filterCountry}
-                  onChange={e => { setFilterCountry(e.target.value); setPage(1); }}
-                  style={{ padding: "0.6rem 0.85rem" }} />
-              </div>
-
-              {/* Active only toggle */}
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.85rem", color: activeOnly ? "var(--text-primary)" : "var(--text-secondary)", paddingBottom: 2 }}>
-                <div onClick={() => { setActiveOnly(v => !v); setPage(1); }}
-                  style={{ width: 38, height: 20, borderRadius: 999, background: activeOnly ? "#6366f1" : "rgba(0,0,0,0.1)", position: "relative", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 }}>
-                  <div style={{ position: "absolute", top: 2, left: activeOnly ? "calc(100% - 18px)" : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+            <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
+              <div className="filter-bar">
+                <div style={{ flex: "2 1 200px" }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Search</label>
+                  <div style={{ position: "relative" }}>
+                    <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", pointerEvents: "none" }} />
+                    <input className="input" placeholder="keyword…" value={search}
+                      onChange={e => { setSearch(e.target.value); setPage(1); }}
+                      onKeyDown={e => e.key === "Enter" && fetchOpps()}
+                      style={{ paddingLeft: "2rem" }} />
+                  </div>
                 </div>
-                Active only
-              </label>
-
-              <button onClick={() => { setPage(1); fetchOpps(); }} className="btn-primary" style={{ height: 38, display: "flex", alignItems: "center", gap: 6, paddingTop: 0, paddingBottom: 0 }}>
-                {oppsLoading ? <Loader2 size={15} className="spinner" /> : <Filter size={15} />} Apply
-              </button>
-
-              <button onClick={() => { setSearch(""); setFilterType(""); setFilterSource(""); setFilterCountry(""); setActiveOnly(false); setPage(1); setTimeout(fetchOpps, 50); }}
-                className="btn-ghost" style={{ height: 38, fontSize: "0.82rem", paddingTop: 0, paddingBottom: 0 }}>
-                Clear
-              </button>
+                <div style={{ flex: "1 1 130px" }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Type</label>
+                  <select className="input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
+                    <option value="">All types</option>
+                    {types.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 130px" }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Source</label>
+                  <select className="input" value={filterSource} onChange={e => { setFilterSource(e.target.value); setPage(1); }}>
+                    <option value="">All sources</option>
+                    {stats?.sources?.map((s: any) => <option key={s.source} value={s.source}>{s.source}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: "1 1 100px" }}>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Country</label>
+                  <input className="input" placeholder="BD, US…" value={filterCountry} onChange={e => { setFilterCountry(e.target.value); setPage(1); }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, justifyContent: "flex-end", paddingBottom: 1 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 7, cursor: "pointer", userSelect: "none", fontSize: "0.8125rem" }}>
+                    <button type="button" role="switch" aria-checked={activeOnly}
+                      onClick={() => { setActiveOnly(v => !v); setPage(1); }}
+                      className={`toggle${activeOnly ? " on" : ""}`} />
+                    Active only
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-end", paddingBottom: 1 }}>
+                  <button onClick={() => { setPage(1); fetchOpps(); }} className="btn btn-primary"
+                    style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    {oppsLoading ? <Loader2 size={14} className="spinner" /> : <Filter size={14} />} Apply
+                  </button>
+                  <button onClick={() => { setSearch(""); setFilterType(""); setFilterSource(""); setFilterCountry(""); setActiveOnly(false); setPage(1); setTimeout(fetchOpps, 50); }}
+                    className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <X size={13} /> Clear
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Result count */}
-            <div style={{ marginBottom: "0.75rem", color: "var(--text-secondary)", fontSize: "0.85rem", display: "flex", justifyContent: "space-between" }}>
-              <span>
-                {oppsLoading ? "Loading…" : <><strong style={{ color: "var(--text-primary)" }}>{total.toLocaleString()}</strong> results · page {page}/{totalPages || 1}</>}
-              </span>
-              <button onClick={fetchOpps} className="btn-ghost" style={{ padding: "4px 10px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ marginBottom: "0.75rem", fontSize: "0.8125rem", color: "var(--text-2)", display: "flex", justifyContent: "space-between" }}>
+              <span>{oppsLoading ? "Loading…" : <><strong style={{ color: "var(--text-1)" }}>{total.toLocaleString()}</strong> results · page {page}/{totalPages || 1}</>}</span>
+              <button onClick={fetchOpps} className="btn btn-outline btn-sm" style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <RefreshCw size={12} /> Refresh
               </button>
             </div>
 
-            {/* Table */}
-            <div className="glass" style={{ overflow: "hidden" }}>
+            <div className="card" style={{ overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 800 }}>
+                <table className="data-table" style={{ minWidth: 800 }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(0,0,0,0.02)" }}>
-                      {([
-                        { label: "Type", col: "type", sortable: true },
-                        { label: "Title", col: "title", sortable: true },
-                        { label: "Organisation", col: "organization", sortable: true },
-                        { label: "Location", col: null, sortable: false },
-                        { label: "Deadline", col: "deadline", sortable: true },
-                        { label: "Source", col: "source", sortable: true },
-                        { label: "Status", col: null, sortable: false },
-                        { label: "", col: null, sortable: false },
-                      ] as { label: string; col: string | null; sortable: boolean }[]).map(({ label, col, sortable }) => {
-                        const active = sortable && col === sortCol;
-                        const arrow = !active ? "↕" : sortDir === "asc" ? "↑" : "↓";
-                        return (
-                          <th key={label || "action"}
-                            onClick={sortable && col ? () => handleSort(col) : undefined}
-                            style={{ padding: "12px 14px", color: active ? "#7c6aff" : "var(--text-secondary)", fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", cursor: sortable ? "pointer" : "default", userSelect: "none" }}>
-                            {label}{sortable && <span style={{ opacity: active ? 1 : 0.35, marginLeft: 3 }}>{arrow}</span>}
-                          </th>
-                        );
-                      })}
+                    <tr>
+                      <SortTh label="Type" col="type" />
+                      <SortTh label="Title" col="title" />
+                      <SortTh label="Organisation" col="organization" />
+                      <th>Location</th>
+                      <SortTh label="Deadline" col="deadline" />
+                      <SortTh label="Source" col="source" />
+                      <th>Status</th>
+                      <th />
                     </tr>
                   </thead>
                   <tbody>
                     {oppsLoading ? (
                       <tr><td colSpan={8} style={{ padding: "3rem", textAlign: "center" }}>
-                        <Loader2 size={28} className="spinner" style={{ margin: "0 auto", color: "#7c6aff" }} />
+                        <Loader2 size={26} className="spinner" style={{ color: "var(--primary)", margin: "0 auto" }} />
                       </td></tr>
                     ) : opps.length === 0 ? (
-                      <tr><td colSpan={8} style={{ padding: "3rem", textAlign: "center", color: "var(--text-secondary)" }}>No opportunities match the current filters.</td></tr>
-                    ) : opps.map((opp, i) => {
+                      <tr><td colSpan={8} style={{ padding: "3rem", textAlign: "center", color: "var(--text-2)" }}>No opportunities found.</td></tr>
+                    ) : opps.map(opp => {
                       const expired = opp.deadline && new Date(opp.deadline) < today;
-                      const color = TYPE_COLORS[opp.type?.toLowerCase()] || "#aaa";
+                      const tc = TYPE_COLORS[opp.type?.toLowerCase()] || { bg: "#f1f5f9", text: "#475569" };
                       return (
-                        <tr key={opp.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)", background: i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)", transition: "background 0.1s" }}
-                          onMouseEnter={e => (e.currentTarget.style.background = "rgba(0,0,0,0.03)")}
-                          onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(0,0,0,0.01)")}>
-
-                          <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
-                            <span style={{ padding: "3px 9px", borderRadius: 6, fontSize: "0.72rem", fontWeight: 700, textTransform: "capitalize", background: `${color}22`, color }}>{opp.type}</span>
+                        <tr key={opp.id}>
+                          <td><span style={{ padding: "2px 7px", borderRadius: 4, fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", background: tc.bg, color: tc.text }}>{opp.type}</span></td>
+                          <td style={{ maxWidth: 300 }}><span className="truncate-2" style={{ fontWeight: 600 }}>{opp.title}</span></td>
+                          <td style={{ color: "var(--text-2)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {opp.organization ? <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Building size={11} />{opp.organization}</span> : "—"}
                           </td>
-
-                          <td style={{ padding: "11px 14px", maxWidth: 320 }}>
-                            <span style={{ fontWeight: 600, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{opp.title}</span>
+                          <td style={{ color: "var(--text-2)", whiteSpace: "nowrap" }}>
+                            {opp.location || opp.country ? <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MapPin size={11} />{opp.location || opp.country}</span> : "—"}
                           </td>
-
-                          <td style={{ padding: "11px 14px", color: "var(--text-secondary)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {opp.organization ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><Building size={12} />{opp.organization}</span> : "—"}
-                          </td>
-
-                          <td style={{ padding: "11px 14px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                            {opp.location || opp.country ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} />{opp.location || opp.country}</span> : "—"}
-                          </td>
-
-                          <td style={{ padding: "11px 14px", whiteSpace: "nowrap" }}>
+                          <td style={{ whiteSpace: "nowrap" }}>
                             {opp.deadline ? (
-                              <span style={{ display: "flex", alignItems: "center", gap: 4, color: expired ? "#ef4444" : "var(--text-secondary)", fontWeight: expired ? 600 : 400 }}>
-                                <Calendar size={12} />{new Date(opp.deadline).toLocaleDateString()}
-                                {expired && <span style={{ fontSize: "0.7rem", background: "rgba(239,68,68,0.12)", color: "#ef4444", padding: "1px 6px", borderRadius: 4 }}>Expired</span>}
+                              <span style={{ display: "flex", alignItems: "center", gap: 3, color: expired ? "var(--danger)" : "var(--text-2)", fontWeight: expired ? 600 : 400 }}>
+                                <Calendar size={11} />{new Date(opp.deadline).toLocaleDateString()}
+                                {expired && <span style={{ fontSize: "0.67rem", background: "var(--danger-muted)", color: "var(--danger)", padding: "1px 5px", borderRadius: 3 }}>Exp.</span>}
                               </span>
                             ) : "—"}
                           </td>
-
-                          <td style={{ padding: "11px 14px", color: "var(--text-secondary)", fontSize: "0.8rem" }}>{opp.source}</td>
-
-                          <td style={{ padding: "11px 14px" }}>
-                            <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "3px 8px", borderRadius: 4, background: opp.is_active ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.1)", color: opp.is_active ? "#4ade80" : "#f87171" }}>
-                              {opp.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-
-                          <td style={{ padding: "11px 14px" }}>
-                            <a href={opp.url} target="_blank" rel="noreferrer"
-                              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--text-secondary)", textDecoration: "none", fontSize: "0.8rem", transition: "all 0.15s" }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--accent)"; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-secondary)"; (e.currentTarget as HTMLAnchorElement).style.borderColor = "var(--border)"; }}>
+                          <td style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>{opp.source}</td>
+                          <td><span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: opp.is_active ? "#ecfdf5" : "#fef2f2", color: opp.is_active ? "#065f46" : "#991b1b" }}>{opp.is_active ? "Active" : "Inactive"}</span></td>
+                          <td>
+                            <a href={opp.url} target="_blank" rel="noreferrer" className="btn btn-outline btn-sm"
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}>
                               <ExternalLink size={11} /> View
                             </a>
                           </td>
@@ -420,133 +349,109 @@ export default function AdminDashboard() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination */}
               {totalPages > 1 && (
-                <div style={{ padding: "1rem 1.25rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn-ghost"
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", opacity: page === 1 ? 0.4 : 1 }}>
-                    <ChevronLeft size={16} /> Prev
-                  </button>
-
-                  <div className="pagination-numbers" style={{ display: "flex", gap: 4 }}>
+                <div style={{ padding: "0.875rem 1rem", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn btn-outline btn-sm"
+                    style={{ display: "flex", alignItems: "center", gap: 5 }}><ChevronLeft size={14} /> Prev</button>
+                  <div className="pagination-nums" style={{ display: "flex", gap: 4 }}>
                     {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-                      let p: number;
-                      if (totalPages <= 7) p = i + 1;
-                      else if (page <= 4) p = i + 1;
-                      else if (page >= totalPages - 3) p = totalPages - 6 + i;
-                      else p = page - 3 + i;
-                      return (
-                        <button key={p} onClick={() => setPage(p)}
-                          style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${p === page ? "var(--accent)" : "var(--border)"}`, background: p === page ? "rgba(124,106,255,0.15)" : "transparent", color: p === page ? "#fff" : "var(--text-secondary)", cursor: "pointer", fontSize: "0.85rem", fontWeight: p === page ? 700 : 400, transition: "all 0.15s" }}>
-                          {p}
-                        </button>
-                      );
+                      let p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i;
+                      return <button key={p} onClick={() => setPage(p)} className={`page-btn${p === page ? " active" : ""}`}>{p}</button>;
                     })}
                   </div>
-
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost"
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", opacity: page === totalPages ? 0.4 : 1 }}>
-                    Next <ChevronRight size={16} />
-                  </button>
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn btn-outline btn-sm"
+                    style={{ display: "flex", alignItems: "center", gap: 5 }}>Next <ChevronRight size={14} /></button>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* ── INGESTION TAB ────────────────────────────────────────────── */}
+        {/* ── INGESTION ── */}
         {activeTab === "ingest" && (
           <div>
-            <div className="glass" style={{ padding: "1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-              <button onClick={loadRuns} disabled={runsLoading} className="btn-ghost" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
-                {runsLoading ? <Loader2 size={16} className="spinner" /> : <RefreshCw size={16} />} Refresh Logs
+            {/* Action bar */}
+            <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={loadRuns} disabled={runsLoading} className="btn btn-outline"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {runsLoading ? <Loader2 size={15} className="spinner" /> : <RefreshCw size={15} />} Refresh Logs
               </button>
-              <button onClick={handleTrigger} disabled={triggering} className="btn-primary" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
-                {triggering ? <Loader2 size={16} className="spinner" /> : <Play size={16} />} Trigger Manual Ingest
+              <button onClick={handleTrigger} disabled={triggering} className="btn btn-primary"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {triggering ? <Loader2 size={15} className="spinner" /> : <Play size={15} />} Trigger Ingest
               </button>
-              <div style={{ borderLeft: "1px solid var(--border)", height: 28, alignSelf: "center", margin: "0 4px" }} />
-              <button onClick={handleBackfill} disabled={backfilling} className="btn-ghost" style={{ height: 42, display: "flex", alignItems: "center", gap: 8, borderColor: "#f59e0b", color: "#f59e0b" }}>
-                {backfilling ? <Loader2 size={16} className="spinner" /> : <Wand2 size={16} />} Backfill WP Data
+              <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 2px" }} />
+              <button onClick={handleBackfill} disabled={backfilling} className="btn"
+                style={{ display: "flex", alignItems: "center", gap: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a" }}>
+                {backfilling ? <Loader2 size={15} className="spinner" /> : <Wand2 size={15} />} Backfill WP Data
               </button>
             </div>
 
-            {/* Live progress bar */}
+            {/* Backfill progress */}
             {backfillProgress && (
-              <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: "0.85rem" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>
-                    Processing{" "}
-                    <strong style={{ color: "var(--text-primary)" }}>{backfillProgress.processed.toLocaleString()}</strong>
-                    {" "}/ {backfillProgress.total.toLocaleString()} records
-                  </span>
-                  <span style={{ fontWeight: 700, color: "#f59e0b" }}>{backfillProgress.pct}%</span>
+              <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem", borderLeft: "3px solid var(--warning)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: "0.8125rem" }}>
+                  <span style={{ color: "var(--text-2)" }}>Processing <strong style={{ color: "var(--text-1)" }}>{backfillProgress.processed.toLocaleString()}</strong> / {backfillProgress.total.toLocaleString()}</span>
+                  <strong style={{ color: "var(--warning)" }}>{backfillProgress.pct}%</strong>
                 </div>
-                <div style={{ height: 7, background: "rgba(0,0,0,0.12)", borderRadius: 999, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${backfillProgress.pct}%`, background: "linear-gradient(90deg,#f59e0b,#d97706)", borderRadius: 999, transition: "width 0.25s ease" }} />
+                <div style={{ height: 6, background: "var(--border)", borderRadius: 999, overflow: "hidden", marginBottom: 10 }}>
+                  <div style={{ height: "100%", width: `${backfillProgress.pct}%`, background: "var(--warning)", borderRadius: 999, transition: "width 0.25s" }} />
                 </div>
-                <div style={{ display: "flex", gap: "1.5rem", marginTop: 10, fontSize: "0.8rem", color: "var(--text-secondary)", flexWrap: "wrap" }}>
-                  <span>Updated: <strong style={{ color: "#4ade80" }}>{backfillProgress.updated}</strong></span>
-                  <span>Deadlines: <strong style={{ color: "#f59e0b" }}>{backfillProgress.deadline_filled}</strong></span>
-                  <span>Organisations: <strong style={{ color: "#a89aff" }}>{backfillProgress.org_filled}</strong></span>
-                  <span>Locations: <strong style={{ color: "#00d4ff" }}>{backfillProgress.loc_filled}</strong></span>
+                <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontSize: "0.8rem", color: "var(--text-2)" }}>
+                  <span>Updated: <strong style={{ color: "var(--success)" }}>{backfillProgress.updated}</strong></span>
+                  <span>Deadlines: <strong style={{ color: "var(--warning)" }}>{backfillProgress.deadline_filled}</strong></span>
+                  <span>Organisations: <strong style={{ color: "var(--primary)" }}>{backfillProgress.org_filled}</strong></span>
+                  <span>Locations: <strong>{backfillProgress.loc_filled}</strong></span>
                 </div>
               </div>
             )}
 
-            {/* Final result */}
+            {/* Backfill result */}
             {backfillResult && !backfillProgress && (
-              <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem", borderLeft: "3px solid #4ade80" }}>
-                <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#4ade80", marginBottom: 8 }}>Backfill complete</p>
-                <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", fontSize: "0.82rem", color: "var(--text-secondary)" }}>
-                  <span>Scanned: <strong style={{ color: "var(--text-primary)" }}>{backfillResult.total_wp_records.toLocaleString()}</strong></span>
-                  <span>Updated: <strong style={{ color: "#4ade80" }}>{backfillResult.records_updated.toLocaleString()}</strong></span>
-                  <span>Deadlines filled: <strong style={{ color: "#f59e0b" }}>{backfillResult.deadline_filled.toLocaleString()}</strong></span>
-                  <span>Organisations filled: <strong style={{ color: "#a89aff" }}>{backfillResult.organization_filled.toLocaleString()}</strong></span>
-                  <span>Locations filled: <strong style={{ color: "#00d4ff" }}>{backfillResult.location_filled.toLocaleString()}</strong></span>
+              <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem", borderLeft: "3px solid var(--success)" }}>
+                <p style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--success)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <CheckCircle size={15} /> Backfill complete
+                </p>
+                <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.8125rem", color: "var(--text-2)" }}>
+                  <span>Scanned: <strong style={{ color: "var(--text-1)" }}>{backfillResult.total_wp_records.toLocaleString()}</strong></span>
+                  <span>Updated: <strong style={{ color: "var(--success)" }}>{backfillResult.records_updated.toLocaleString()}</strong></span>
+                  <span>Deadlines: <strong style={{ color: "var(--warning)" }}>{backfillResult.deadline_filled.toLocaleString()}</strong></span>
+                  <span>Orgs: <strong style={{ color: "var(--primary)" }}>{backfillResult.organization_filled.toLocaleString()}</strong></span>
+                  <span>Locations: <strong>{backfillResult.location_filled.toLocaleString()}</strong></span>
                 </div>
-                {(backfillResult.skipped_no_raw > 0 || backfillResult.skipped_no_content > 0 || backfillResult.skipped_already_complete > 0) && (
-                  <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: 8, opacity: 0.7 }}>
-                    {backfillResult.skipped_already_complete > 0 && <span>Already complete: {backfillResult.skipped_already_complete.toLocaleString()}</span>}
-                    {backfillResult.skipped_no_raw > 0 && <span>No raw data: {backfillResult.skipped_no_raw.toLocaleString()}</span>}
-                    {backfillResult.skipped_no_content > 0 && <span>No content HTML: {backfillResult.skipped_no_content.toLocaleString()}</span>}
-                  </div>
-                )}
               </div>
             )}
 
-
-            <div className="glass" style={{ overflow: "hidden" }}>
-              <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
-                <h2 style={{ fontSize: "1.1rem", fontWeight: 600 }}>Recent Ingestion Runs</h2>
+            {/* Runs table */}
+            <div className="card" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
+                <h2 style={{ fontSize: "0.95rem", fontWeight: 700 }}>Recent Ingestion Runs</h2>
               </div>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.875rem" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["ID", "Source", "Status", "Started At", "Fetched", "Created", "Updated"].map(h => (
-                        <th key={h} style={{ padding: "12px 16px", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                <table className="data-table">
+                  <thead><tr>
+                    {["ID", "Source", "Status", "Started At", "Fetched", "Created", "Updated"].map(h => <th key={h}>{h}</th>)}
+                  </tr></thead>
                   <tbody>
                     {runs.length === 0 ? (
-                      <tr><td colSpan={7} style={{ padding: "2.5rem", textAlign: "center", color: "var(--text-secondary)" }}>
+                      <tr><td colSpan={7} style={{ padding: "2rem", textAlign: "center", color: "var(--text-2)" }}>
                         Click "Refresh Logs" to load ingestion history.
                       </td></tr>
                     ) : runs.map(run => (
-                      <tr key={run.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
-                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>#{run.id}</td>
-                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>{run.source}</td>
-                        <td style={{ padding: "12px 16px" }}>
-                          <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", background: run.status === "completed" ? "rgba(34,197,94,0.1)" : run.status === "error" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)", color: run.status === "completed" ? "#4ade80" : run.status === "error" ? "#f87171" : "#fbbf24" }}>
+                      <tr key={run.id}>
+                        <td style={{ color: "var(--text-3)" }}>#{run.id}</td>
+                        <td style={{ fontWeight: 600 }}>{run.source}</td>
+                        <td>
+                          <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase",
+                            background: run.status === "success" ? "#ecfdf5" : run.status === "error" ? "#fef2f2" : "#fffbeb",
+                            color: run.status === "success" ? "#065f46" : run.status === "error" ? "#991b1b" : "#92400e" }}>
                             {run.status}
                           </span>
                         </td>
-                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)", fontSize: "0.82rem" }}>{new Date(run.started_at).toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>{run.fetched}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", color: "#4ade80" }}>{run.created}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "center", color: "#fbbf24" }}>{run.updated}</td>
+                        <td style={{ color: "var(--text-2)", fontSize: "0.8rem" }}>{new Date(run.started_at).toLocaleString()}</td>
+                        <td style={{ textAlign: "center" }}>{run.fetched}</td>
+                        <td style={{ textAlign: "center", color: "var(--success)", fontWeight: 600 }}>{run.created}</td>
+                        <td style={{ textAlign: "center", color: "var(--warning)", fontWeight: 600 }}>{run.updated}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -556,52 +461,52 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ── EMAIL LOGS TAB ───────────────────────────────────────────── */}
+        {/* ── EMAIL LOGS ── */}
         {activeTab === "emails" && (
           <div>
-            <div className="glass" style={{ padding: "1.5rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", alignItems: "flex-end" }}>
-              <button onClick={loadEmailLogs} disabled={emailLogsLoading} className="btn-ghost" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
-                {emailLogsLoading ? <Loader2 size={16} className="spinner" /> : <RefreshCw size={16} />} Refresh Logs
+            <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={loadEmailLogs} disabled={emailLogsLoading} className="btn btn-outline"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {emailLogsLoading ? <Loader2 size={15} className="spinner" /> : <RefreshCw size={15} />} Refresh Logs
               </button>
-              <button onClick={handleTriggerEmails} disabled={triggeringEmails} className="btn-primary" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
-                {triggeringEmails ? <Loader2 size={16} className="spinner" /> : <Play size={16} />} Trigger Manual Emails
+              <button onClick={handleTriggerEmails} disabled={triggeringEmails} className="btn btn-primary"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {triggeringEmails ? <Loader2 size={15} className="spinner" /> : <Play size={15} />} Trigger Emails
               </button>
             </div>
 
-            <div className="glass" style={{ overflow: "hidden" }}>
-              <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
-                <h2 style={{ fontSize: "1.1rem", fontWeight: 600 }}>Recent Email Deliveries</h2>
+            <div className="card" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
+                <h2 style={{ fontSize: "0.95rem", fontWeight: 700 }}>Recent Email Deliveries</h2>
               </div>
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.875rem" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                      {["ID", "User Email", "Type", "Status", "Sent At", "Error Message"].map(h => (
-                        <th key={h} style={{ padding: "12px 16px", color: "var(--text-secondary)", fontWeight: 600, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                <table className="data-table">
+                  <thead><tr>
+                    {["ID", "User Email", "Type", "Status", "Sent At", "Error"].map(h => <th key={h}>{h}</th>)}
+                  </tr></thead>
                   <tbody>
                     {emailLogs.length === 0 ? (
-                      <tr><td colSpan={6} style={{ padding: "2.5rem", textAlign: "center", color: "var(--text-secondary)" }}>
-                        {emailLogsLoading ? "Loading..." : "No email logs found."}
+                      <tr><td colSpan={6} style={{ padding: "2rem", textAlign: "center", color: "var(--text-2)" }}>
+                        {emailLogsLoading ? "Loading…" : "No email logs found."}
                       </td></tr>
                     ) : emailLogs.map(log => (
-                      <tr key={log.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
-                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>#{log.id}</td>
-                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>{log.user_email || `User #${log.user_id}`}</td>
-                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)" }}>
-                          <span style={{ padding: "3px 8px", borderRadius: 4, background: "rgba(0,0,0,0.05)", fontSize: "0.75rem", fontWeight: 600 }}>
+                      <tr key={log.id}>
+                        <td style={{ color: "var(--text-3)" }}>#{log.id}</td>
+                        <td style={{ fontWeight: 600, fontSize: "0.85rem" }}>{log.user_email || `User #${log.user_id}`}</td>
+                        <td>
+                          <span style={{ padding: "2px 7px", borderRadius: 4, background: "var(--surface-2)", border: "1px solid var(--border)", fontSize: "0.72rem", fontWeight: 600 }}>
                             {log.email_type === "daily_digest" ? "Daily Digest" : log.email_type === "deadline_alert" ? "Deadline Alert" : log.email_type}
                           </span>
                         </td>
-                        <td style={{ padding: "12px 16px" }}>
-                          <span style={{ padding: "3px 9px", borderRadius: 5, fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", background: log.status === "success" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: log.status === "success" ? "#4ade80" : "#f87171" }}>
+                        <td>
+                          <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase",
+                            background: log.status === "success" ? "#ecfdf5" : "#fef2f2",
+                            color: log.status === "success" ? "#065f46" : "#991b1b" }}>
                             {log.status}
                           </span>
                         </td>
-                        <td style={{ padding: "12px 16px", color: "var(--text-secondary)", fontSize: "0.82rem" }}>{new Date(log.sent_at).toLocaleString()}</td>
-                        <td style={{ padding: "12px 16px", color: "#f87171", fontSize: "0.82rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.error_message || ""}>
+                        <td style={{ color: "var(--text-2)", fontSize: "0.8rem" }}>{new Date(log.sent_at).toLocaleString()}</td>
+                        <td style={{ color: "var(--danger)", fontSize: "0.8rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.error_message || ""}>
                           {log.error_message || "—"}
                         </td>
                       </tr>
