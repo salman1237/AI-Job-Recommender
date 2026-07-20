@@ -9,13 +9,14 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import OTPVerification, User
+from app.models import OTPVerification, PasswordResetToken, User
 from app.security import create_access_token, hash_password, verify_password
-from app.services.email_service import send_otp_email
+from app.services.email_service import send_otp_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 OTP_TTL_MINUTES = 10
+RESET_TOKEN_TTL_MINUTES = 15
 
 
 class SendOtpRequest(BaseModel):
@@ -32,6 +33,16 @@ class RegisterRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    token: str
+    new_password: str
 
 
 @router.post("/send-otp", status_code=status.HTTP_200_OK)
@@ -92,6 +103,52 @@ async def register(body: RegisterRequest, session: AsyncSession = Depends(get_se
 
     token = create_access_token(user.id, user.email, user.role)
     return TokenResponse(access_token=token)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+async def forgot_password(body: ForgotPasswordRequest, session: AsyncSession = Depends(get_session)):
+    """Send a 6-digit reset code to the email. Always returns success to avoid email enumeration."""
+    user = await session.scalar(select(User).where(User.email == body.email))
+    if user:
+        await session.execute(
+            update(PasswordResetToken)
+            .where(PasswordResetToken.email == body.email, PasswordResetToken.is_used.is_(False))
+            .values(is_used=True)
+        )
+        token = str(secrets.randbelow(1_000_000)).zfill(6)
+        session.add(PasswordResetToken(
+            email=body.email,
+            token=token,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES),
+        ))
+        await session.commit()
+        await send_password_reset_email(body.email, token)
+    return {"message": "If that email is registered, a reset code has been sent."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(body: ResetPasswordRequest, session: AsyncSession = Depends(get_session)):
+    """Verify reset token and update the user's password."""
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
+    now = datetime.now(timezone.utc)
+    token_record = await session.scalar(
+        select(PasswordResetToken).where(
+            PasswordResetToken.email == body.email,
+            PasswordResetToken.token == body.token,
+            PasswordResetToken.is_used.is_(False),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    if not token_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code. Please request a new one.")
+    user = await session.scalar(select(User).where(User.email == body.email))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.hashed_password = hash_password(body.new_password)
+    token_record.is_used = True
+    await session.commit()
+    return {"message": "Password reset successfully. You can now sign in."}
 
 
 @router.post("/login", response_model=TokenResponse)

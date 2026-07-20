@@ -112,6 +112,8 @@ export default function AdminDashboard() {
   const [filterSource, setFilterSource] = useState("");
   const [filterCountry, setFilterCountry] = useState("");
   const [activeOnly, setActiveOnly] = useState(false);
+  const [sortCol, setSortCol] = useState("posted_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
 
@@ -119,10 +121,20 @@ export default function AdminDashboard() {
     getOpportunityTypes().then(r => setTypes(r.data.types)).catch(() => {});
   }, []);
 
+  const handleSort = (col: string) => {
+    if (col === sortCol) {
+      setSortDir(d => d === "desc" ? "asc" : "desc");
+    } else {
+      setSortCol(col);
+      setSortDir("desc");
+    }
+    setPage(1);
+  };
+
   const fetchOpps = useCallback(async () => {
     setOppsLoading(true);
     try {
-      const params: Record<string, unknown> = { page, page_size: PAGE_SIZE };
+      const params: Record<string, unknown> = { page, page_size: PAGE_SIZE, sort_by: sortCol, sort_dir: sortDir };
       if (search.trim()) params.q = search.trim().split(/\s+/).slice(0, 5);
       if (filterType) params.type = filterType;
       if (filterSource) params.source = filterSource;
@@ -133,7 +145,7 @@ export default function AdminDashboard() {
       setTotal(data.total);
     } catch { toast.error("Failed to load opportunities"); }
     finally { setOppsLoading(false); }
-  }, [page, search, filterType, filterSource, filterCountry, activeOnly]);
+  }, [page, search, filterType, filterSource, filterCountry, activeOnly, sortCol, sortDir]);
 
   useEffect(() => {
     if (activeTab === "jobs") fetchOpps();
@@ -276,9 +288,26 @@ export default function AdminDashboard() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", minWidth: 800 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(0,0,0,0.02)" }}>
-                      {["Type", "Title", "Organisation", "Location", "Deadline", "Source", "Status", ""].map(h => (
-                        <th key={h} style={{ padding: "12px 14px", color: "var(--text-secondary)", fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{h}</th>
-                      ))}
+                      {([
+                        { label: "Type", col: "type", sortable: true },
+                        { label: "Title", col: "title", sortable: true },
+                        { label: "Organisation", col: "organization", sortable: true },
+                        { label: "Location", col: null, sortable: false },
+                        { label: "Deadline", col: "deadline", sortable: true },
+                        { label: "Source", col: "source", sortable: true },
+                        { label: "Status", col: null, sortable: false },
+                        { label: "", col: null, sortable: false },
+                      ] as { label: string; col: string | null; sortable: boolean }[]).map(({ label, col, sortable }) => {
+                        const active = sortable && col === sortCol;
+                        const arrow = !active ? "↕" : sortDir === "asc" ? "↑" : "↓";
+                        return (
+                          <th key={label || "action"}
+                            onClick={sortable && col ? () => handleSort(col) : undefined}
+                            style={{ padding: "12px 14px", color: active ? "#7c6aff" : "var(--text-secondary)", fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.04em", cursor: sortable ? "pointer" : "default", userSelect: "none" }}>
+                            {label}{sortable && <span style={{ opacity: active ? 1 : 0.35, marginLeft: 3 }}>{arrow}</span>}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>

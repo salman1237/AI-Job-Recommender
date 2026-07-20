@@ -138,6 +138,46 @@ async def send_otp_email(to_email: str, otp: str):
     )
 
 
+async def send_password_reset_email(to_email: str, token: str):
+    """Send a 6-digit password reset code."""
+    plain = (
+        f"Your AI Job Recommender password reset code is: {token}\n"
+        "This code expires in 15 minutes. If you did not request a reset, ignore this email."
+    )
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:480px;margin:48px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+    <div style="background:linear-gradient(135deg,#d97706 0%,#b45309 100%);padding:32px;text-align:center;">
+      <h1 style="margin:0;color:#fff;font-size:22px;font-weight:800;">Reset your password</h1>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">AI Job Recommender</p>
+    </div>
+    <div style="background:#fff;padding:36px 40px;text-align:center;">
+      <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+        Use the code below to reset your password. It expires in <strong>15 minutes</strong>.
+      </p>
+      <div style="display:inline-block;background:#fffbeb;border:2px dashed #d97706;border-radius:12px;padding:18px 40px;">
+        <span style="font-size:36px;font-weight:900;letter-spacing:10px;color:#b45309;">{token}</span>
+      </div>
+      <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;">
+        If you did not request a password reset, you can safely ignore this email.
+      </p>
+    </div>
+    <div style="background:#f9fafb;padding:16px;text-align:center;border-top:1px solid #e5e7eb;">
+      <p style="margin:0;font-size:11px;color:#9ca3af;">AI Job Recommender &bull; Never share this code with anyone.</p>
+    </div>
+  </div>
+</body>
+</html>"""
+    await send_email_with_attachment(
+        to_email=to_email,
+        subject="Your password reset code",
+        text_content=plain,
+        html_content=html,
+    )
+
+
 def _score_badge(score: int) -> str:
     if score >= 80:
         color, bg = "#166534", "#dcfce7"

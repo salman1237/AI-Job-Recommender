@@ -39,6 +39,12 @@ export const sendOtp = (email: string) =>
 export const register = (email: string, password: string, full_name: string, otp: string) =>
   api.post("/auth/register", { email, password, full_name, otp });
 
+export const forgotPassword = (email: string) =>
+  api.post("/auth/forgot-password", { email });
+
+export const resetPassword = (email: string, token: string, new_password: string) =>
+  api.post("/auth/reset-password", { email, token, new_password });
+
 // ── User ──────────────────────────────────────────────────────────────
 export const getMe = () => api.get("/users/me");
 

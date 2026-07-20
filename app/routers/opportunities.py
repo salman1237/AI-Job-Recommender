@@ -22,6 +22,15 @@ from app.schemas import (
 
 router = APIRouter(tags=["opportunities"])
 
+_SORTABLE = {
+    "posted_at": Opportunity.posted_at,
+    "title": Opportunity.title,
+    "organization": Opportunity.organization,
+    "deadline": Opportunity.deadline,
+    "type": Opportunity.type,
+    "source": Opportunity.source,
+}
+
 
 @router.get("/opportunities", response_model=OpportunityList)
 async def list_opportunities(
@@ -30,6 +39,8 @@ async def list_opportunities(
     source: str | None = None,
     country: str | None = None,
     active_only: bool = True,
+    sort_by: str = Query("posted_at", description="posted_at | title | organization | deadline | type | source"),
+    sort_dir: str = Query("desc", description="asc | desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: AsyncSession = Depends(get_session),
@@ -60,8 +71,14 @@ async def list_opportunities(
 
     total = await session.scalar(count_stmt) or 0
 
+    sort_col = _SORTABLE.get(sort_by, Opportunity.posted_at)
+    if sort_dir.lower() == "asc":
+        primary_order = sort_col.asc().nullsfirst()
+    else:
+        primary_order = sort_col.desc().nullslast()
+
     list_stmt = (
-        list_stmt.order_by(Opportunity.posted_at.desc().nullslast(), Opportunity.id.desc())
+        list_stmt.order_by(primary_order, Opportunity.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

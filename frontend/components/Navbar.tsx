@@ -4,10 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Briefcase, LayoutDashboard, User, LogOut, Menu, X } from "lucide-react";
+import { Briefcase, LayoutDashboard, User, LogOut, Menu, X, Globe } from "lucide-react";
 
 const navLinks = [
-  { href: "/opportunities", label: "Opportunities", icon: Briefcase },
+  { href: "/opportunities", label: "My Matches", icon: Briefcase },
+  { href: "/browse", label: "Browse All", icon: Globe },
   { href: "/profile", label: "My Profile", icon: User },
 ];
 
