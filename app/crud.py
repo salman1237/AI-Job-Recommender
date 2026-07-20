@@ -1,6 +1,6 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ingest.base import Normalized
@@ -94,12 +94,22 @@ async def last_success_time(session: AsyncSession, source: str) -> datetime | No
 
 
 async def deactivate_expired(session: AsyncSession) -> int:
-    """Nightly sweep: mark records whose deadline has passed as inactive."""
+    """Nightly sweep: mark opportunities inactive if:
+    - their deadline has passed, OR
+    - they have no deadline and were posted (or created) more than 365 days ago.
+    """
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(days=365)
     result = await session.execute(
         update(Opportunity)
         .where(
-            Opportunity.deadline < date.today(),
             Opportunity.is_active.is_(True),
+            or_(
+                Opportunity.deadline < date.today(),
+                and_(
+                    Opportunity.deadline.is_(None),
+                    func.coalesce(Opportunity.posted_at, Opportunity.created_at) < stale_cutoff,
+                ),
+            ),
         )
         .values(is_active=False)
     )
