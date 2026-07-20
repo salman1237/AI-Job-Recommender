@@ -36,6 +36,29 @@ WP_SITES = [
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+_TH_TD_RE = re.compile(r"<th[^>]*>(.*?)</th>.*?<td[^>]*>(.*?)</td>", re.DOTALL | re.IGNORECASE)
+
+# Keys that indicate organisation in a WP table
+_ORG_KEYS = {
+    "host organisation", "host organization", "organization", "organisation",
+    "awarding body", "scholarship provider", "offered by", "programme provider",
+    "host institution", "institution", "program provider", "grant provider",
+    "fellowship provider", "sponsor",
+}
+# Keys that indicate location/country in a WP table
+_LOC_KEYS = {
+    "host country", "host countries", "country", "countries", "location",
+    "venue", "open to", "eligible countries", "participating countries",
+    "open to students from", "nationality",
+}
+# Category slugs too generic to use as country
+_SKIP_CATS = {
+    "africa", "america", "asia", "europe", "australia", "all",
+    "scholarships", "fellowships", "fellowships-and-scholarships",
+    "bachelor", "master", "phd", "short-term-travel", "internship",
+    "research-study-abroad", "graduate", "undergraduate",
+    "fellowship-grant",
+}
 
 # Matches "Deadline: Month DD, YYYY" or "Deadline: DD Month YYYY" anywhere in content.
 _DEADLINE_RE = re.compile(
@@ -67,10 +90,24 @@ def strip_html(html: str | None) -> str | None:
 
 
 def _parse_deadline(html: str | None) -> "date | None":
-    from datetime import date as date_type
     if not html:
         return None
+    # 1. Table extraction (e.g. opp4youth: <th>Deadline</th><td>20 August 2026</td>)
+    fields = _parse_table_fields(html)
+    for key, val in fields.items():
+        if "deadline" in key and val:
+            try:
+                dt = dateparser.parse(val.strip(), dayfirst=True)
+                if dt:
+                    return dt.date()
+            except (ValueError, OverflowError, TypeError):
+                pass
+    # 2. Regex on raw HTML (inline: <strong>Deadline: Oct 15, 2026</strong>)
     m = _DEADLINE_RE.search(html)
+    if not m:
+        # 3. Regex on stripped plain text (handles split tags like
+        #    <strong>Deadline:</strong> <strong>20 August 2026</strong>)
+        m = _DEADLINE_RE.search(strip_html(html) or "")
     if not m:
         return None
     raw = next(g for g in m.groups() if g)
@@ -79,6 +116,64 @@ def _parse_deadline(html: str | None) -> "date | None":
         return dt.date() if dt else None
     except (ValueError, OverflowError, TypeError):
         return None
+
+
+def _parse_table_fields(html: str | None) -> dict[str, str]:
+    """Extract {lower-cased th label → stripped td text} from all HTML tables."""
+    if not html:
+        return {}
+    result: dict[str, str] = {}
+    for m in _TH_TD_RE.finditer(html):
+        key = (strip_html(m.group(1)) or "").lower().strip()
+        val = (strip_html(m.group(2)) or "").strip()
+        if key and val:
+            result[key] = val
+    return result
+
+
+def _parse_organization(html: str | None) -> str | None:
+    """Try to extract the awarding organisation from content HTML."""
+    fields = _parse_table_fields(html)
+    for key, val in fields.items():
+        if key in _ORG_KEYS:
+            return val[:250]
+    if not html:
+        return None
+    text = strip_html(html) or ""
+    m = re.search(
+        r"(?:host\s+organ[iz]ation|organ[iz]ation|awarding\s+body|offered\s+by)\s*:\s*([^\n]{3,200})",
+        text, re.IGNORECASE,
+    )
+    return m.group(1).strip()[:250] if m else None
+
+
+def _parse_location(html: str | None, class_list=None) -> str | None:
+    """Try to extract location/country from content HTML, then from WP class_list."""
+    fields = _parse_table_fields(html)
+    for key, val in fields.items():
+        if key in _LOC_KEYS:
+            return val[:300]
+    if html:
+        text = strip_html(html) or ""
+        m = re.search(
+            r"(?:host\s+countr(?:y|ies)|location|countr(?:y|ies)|venue|open\s+to)\s*:\s*([^\n]{3,250})",
+            text, re.IGNORECASE,
+        )
+        if m:
+            return m.group(1).strip()[:300]
+    # Fall back: find the first meaningful category-* class
+    if class_list:
+        items: list[str] = (
+            list(class_list.values()) if isinstance(class_list, dict) else class_list
+        )
+        for cls in items:
+            if not isinstance(cls, str):
+                continue
+            if cls.startswith("category-"):
+                slug = cls[9:]
+                if slug not in _SKIP_CATS:
+                    return slug.replace("-", " ").title()
+    return None
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -143,6 +238,7 @@ class WordPressAdapter(Adapter):
         title = strip_html((post.get("title") or {}).get("rendered")) or "(untitled)"
         content_html = (post.get("content") or {}).get("rendered")
         description = strip_html(content_html)
+        class_list = post.get("class_list")
         return Normalized(
             source=self.source,
             external_id=str(post.get("id")),
@@ -153,6 +249,8 @@ class WordPressAdapter(Adapter):
             apply_url=post.get("link"),
             category=self.type,
             tags=[str(t) for t in (post.get("tags") or [])],
+            organization=_parse_organization(content_html),
+            location=_parse_location(content_html, class_list),
             deadline=_parse_deadline(content_html),
             posted_at=_parse_dt(post.get("date_gmt") or post.get("date")),
             raw=post,

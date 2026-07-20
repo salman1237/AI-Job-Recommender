@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { triggerIngest, triggerEmails, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs } from "@/lib/api";
+import { triggerIngest, triggerEmails, backfillWp, getIngestionRuns, getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import toast from "react-hot-toast";
@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import {
   Database, Play, RefreshCw, Loader2, Key,
   Search, ChevronLeft, ChevronRight, ExternalLink,
-  MapPin, Building, Calendar, Filter, BarChart2, Briefcase, Mail, Users
+  MapPin, Building, Calendar, Filter, BarChart2, Briefcase, Mail, Users, Wand2
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -47,6 +47,8 @@ export default function AdminDashboard() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
   const [triggering, setTriggering] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<null | { records_updated: number; deadline_filled: number; organization_filled: number; location_filled: number; total_wp_records: number }>(null);
 
   const loadRuns = async () => {
     setRunsLoading(true);
@@ -65,6 +67,17 @@ export default function AdminDashboard() {
       setTimeout(loadRuns, 2500);
     } catch { toast.error("Failed to trigger ingestion"); }
     finally { setTriggering(false); }
+  };
+
+  const handleBackfill = async () => {
+    setBackfilling(true);
+    setBackfillResult(null);
+    try {
+      const { data } = await backfillWp();
+      setBackfillResult(data);
+      toast.success(`Backfill done — ${data.records_updated} records updated.`);
+    } catch { toast.error("Backfill failed."); }
+    finally { setBackfilling(false); }
   };
 
   // ── Email Logs state ────────────────────────────────────────────────
@@ -417,7 +430,32 @@ export default function AdminDashboard() {
               <button onClick={handleTrigger} disabled={triggering} className="btn-primary" style={{ height: 42, display: "flex", alignItems: "center", gap: 8 }}>
                 {triggering ? <Loader2 size={16} className="spinner" /> : <Play size={16} />} Trigger Manual Ingest
               </button>
+              <div style={{ borderLeft: "1px solid var(--border)", height: 28, alignSelf: "center", margin: "0 4px" }} />
+              <button onClick={handleBackfill} disabled={backfilling} className="btn-ghost" style={{ height: 42, display: "flex", alignItems: "center", gap: 8, borderColor: "#f59e0b", color: "#f59e0b" }}>
+                {backfilling ? <Loader2 size={16} className="spinner" /> : <Wand2 size={16} />} Backfill WP Data
+              </button>
             </div>
+
+            {backfillResult && (
+              <div className="glass" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Scanned <strong style={{ color: "var(--text-primary)" }}>{backfillResult.total_wp_records}</strong> WP records
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Updated <strong style={{ color: "#4ade80" }}>{backfillResult.records_updated}</strong> total
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Deadlines filled: <strong style={{ color: "#f59e0b" }}>{backfillResult.deadline_filled}</strong>
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Organisations filled: <strong style={{ color: "#a89aff" }}>{backfillResult.organization_filled}</strong>
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                  Locations filled: <strong style={{ color: "#00d4ff" }}>{backfillResult.location_filled}</strong>
+                </div>
+              </div>
+            )}
+
 
             <div className="glass" style={{ overflow: "hidden" }}>
               <div style={{ padding: "1rem 1.5rem", borderBottom: "1px solid var(--border)" }}>

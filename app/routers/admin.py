@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.db import get_session
 from app.ingest.runner import run_ingestion
+from app.ingest.wordpress import _parse_deadline, _parse_organization, _parse_location
 from app.schemas import IngestResult, RunOut, EmailLogOut
 from app.services.email_service import run_daily_opportunity_digests, run_deadline_alerts
 
@@ -27,6 +28,61 @@ async def trigger_emails(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_daily_opportunity_digests)
     background_tasks.add_task(run_deadline_alerts)
     return {"status": "started", "detail": "Emails triggered in the background. Check /admin/email-logs for progress."}
+
+
+@router.post("/backfill-wp", dependencies=[Depends(require_admin)])
+async def backfill_wp_fields(session: AsyncSession = Depends(get_session)):
+    """
+    Re-extract deadline, organization, and location from the stored raw JSON
+    of all WordPress-sourced opportunities. Only fills currently-null fields.
+    No external API calls — uses the raw column already in the DB.
+    """
+    from app.models import Opportunity
+
+    WP_SOURCES = {"opportunitydesk", "opp4youth", "opp4africans", "uri_fellowships"}
+    stmt = select(Opportunity).where(Opportunity.source.in_(WP_SOURCES))
+    rows = (await session.scalars(stmt)).all()
+
+    updated = deadline_filled = org_filled = loc_filled = 0
+    for opp in rows:
+        if not opp.raw:
+            continue
+        content_html = (opp.raw.get("content") or {}).get("rendered")
+        class_list = opp.raw.get("class_list")
+        changed = False
+
+        if opp.deadline is None:
+            val = _parse_deadline(content_html)
+            if val:
+                opp.deadline = val
+                deadline_filled += 1
+                changed = True
+
+        if not opp.organization:
+            val = _parse_organization(content_html)
+            if val:
+                opp.organization = val
+                org_filled += 1
+                changed = True
+
+        if not opp.location:
+            val = _parse_location(content_html, class_list)
+            if val:
+                opp.location = val
+                loc_filled += 1
+                changed = True
+
+        if changed:
+            updated += 1
+
+    await session.commit()
+    return {
+        "total_wp_records": len(rows),
+        "records_updated": updated,
+        "deadline_filled": deadline_filled,
+        "organization_filled": org_filled,
+        "location_filled": loc_filled,
+    }
 
 
 @router.get(
