@@ -37,6 +37,18 @@ WP_SITES = [
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
 
+# Matches "Deadline: Month DD, YYYY" or "Deadline: DD Month YYYY" anywhere in content.
+_DEADLINE_RE = re.compile(
+    r"deadline\s*:\s*"
+    r"(?:"
+    r"(\w+ \d{1,2},?\s*\d{4})"          # "October 15, 2026" / "October 15 2026"
+    r"|(\d{1,2}\s+\w+\s+\d{4})"         # "15 October 2026"
+    r"|(\d{4}-\d{2}-\d{2})"             # "2026-10-15"
+    r"|(\d{1,2}/\d{1,2}/\d{4})"         # "10/15/2026"
+    r")",
+    re.IGNORECASE,
+)
+
 
 def strip_html(html: str | None) -> str | None:
     if not html:
@@ -52,6 +64,21 @@ def strip_html(html: str | None) -> str | None:
     )
     text = _WS_RE.sub(" ", text).strip()
     return text or None
+
+
+def _parse_deadline(html: str | None) -> "date | None":
+    from datetime import date as date_type
+    if not html:
+        return None
+    m = _DEADLINE_RE.search(html)
+    if not m:
+        return None
+    raw = next(g for g in m.groups() if g)
+    try:
+        dt = dateparser.parse(raw.strip(), dayfirst=False)
+        return dt.date() if dt else None
+    except (ValueError, OverflowError, TypeError):
+        return None
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -114,7 +141,8 @@ class WordPressAdapter(Adapter):
 
     def _normalize(self, post: dict) -> Normalized:
         title = strip_html((post.get("title") or {}).get("rendered")) or "(untitled)"
-        description = strip_html((post.get("content") or {}).get("rendered"))
+        content_html = (post.get("content") or {}).get("rendered")
+        description = strip_html(content_html)
         return Normalized(
             source=self.source,
             external_id=str(post.get("id")),
@@ -125,6 +153,7 @@ class WordPressAdapter(Adapter):
             apply_url=post.get("link"),
             category=self.type,
             tags=[str(t) for t in (post.get("tags") or [])],
+            deadline=_parse_deadline(content_html),
             posted_at=_parse_dt(post.get("date_gmt") or post.get("date")),
             raw=post,
         )
