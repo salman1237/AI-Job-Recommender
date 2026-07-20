@@ -11,7 +11,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-async def send_email_with_attachment(to_email: str, subject: str, text_content: str, attachment_name: str = None, attachment_bytes: bytes = None, user_id: int = None, email_type: str = None):
+async def send_email_with_attachment(to_email: str, subject: str, text_content: str, html_content: str = None, attachment_name: str = None, attachment_bytes: bytes = None, user_id: int = None, email_type: str = None):
     if not settings.mail_host or not settings.mail_username:
         logger.warning("SMTP not configured. Skipping email to %s", to_email)
         return
@@ -21,6 +21,9 @@ async def send_email_with_attachment(to_email: str, subject: str, text_content: 
     message["To"] = to_email
     message["Subject"] = subject
     message.set_content(text_content)
+
+    if html_content:
+        message.add_alternative(html_content, subtype="html")
 
     if attachment_name and attachment_bytes:
         message.add_attachment(
@@ -95,6 +98,194 @@ def generate_excel_attachment(opportunities) -> bytes:
     wb.save(output)
     return output.getvalue()
 
+def _score_badge(score: int) -> str:
+    if score >= 80:
+        color, bg = "#166534", "#dcfce7"
+    elif score >= 50:
+        color, bg = "#92400e", "#fef3c7"
+    else:
+        color, bg = "#991b1b", "#fee2e2"
+    return (
+        f'<span style="display:inline-block;padding:3px 9px;border-radius:999px;'
+        f'font-weight:700;font-size:12px;background:{bg};color:{color};">'
+        f'{score}%</span>'
+    )
+
+def _type_badge(type_str: str) -> str:
+    colors = {
+        "job": "#6d28d9",
+        "scholarship": "#0369a1",
+        "fellowship": "#be185d",
+        "grant": "#065f46",
+        "internship": "#b45309",
+    }
+    key = (type_str or "").lower()
+    color = colors.get(key, "#374151")
+    return (
+        f'<span style="display:inline-block;padding:2px 8px;border-radius:4px;'
+        f'font-size:11px;font-weight:600;background:{color}22;color:{color};'
+        f'text-transform:capitalize;">{type_str or "—"}</span>'
+    )
+
+def generate_digest_html(name: str, opportunities_with_scores: list) -> str:
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    count = len(opportunities_with_scores)
+
+    rows_html = ""
+    for i, (opp, score) in enumerate(opportunities_with_scores):
+        bg = "#ffffff" if i % 2 == 0 else "#f9fafb"
+        deadline = opp.deadline.strftime("%b %d, %Y") if opp.deadline else "—"
+        title = (opp.title or "")[:60] + ("…" if len(opp.title or "") > 60 else "")
+        org = opp.organization or "—"
+        rows_html += f"""
+        <tr style="background:{bg};">
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">{_score_badge(score)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;">{_type_badge(opp.type)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111827;max-width:260px;">{title}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#374151;">{org}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;color:#6b7280;">{deadline}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;">
+            <a href="{opp.url}" target="_blank"
+               style="display:inline-block;padding:5px 14px;background:#6d28d9;color:#fff;
+                      border-radius:6px;text-decoration:none;font-size:12px;font-weight:600;">
+              Apply
+            </a>
+          </td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:860px;margin:32px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:36px 40px;text-align:center;">
+      <h1 style="margin:0;color:#fff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">
+        Your Daily Top {count} Job Matches
+      </h1>
+      <p style="margin:10px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">{date_str}</p>
+    </div>
+
+    <!-- Greeting -->
+    <div style="background:#fff;padding:28px 40px 20px;">
+      <p style="margin:0;font-size:15px;color:#111827;">Hello <strong>{name}</strong>,</p>
+      <p style="margin:10px 0 0;font-size:14px;color:#6b7280;line-height:1.6;">
+        Here are your top AI-matched opportunities for today based on your CV profile.
+        The full list with all details is attached as an Excel file.
+      </p>
+    </div>
+
+    <!-- Table -->
+    <div style="background:#fff;padding:0 40px 32px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f9fafb;border-top:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;">
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Score</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Type</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Title</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Organization</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Deadline</th>
+            <th style="padding:10px 14px;text-align:center;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Link</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center;">
+      <p style="margin:0;font-size:12px;color:#9ca3af;">
+        AI Job Recommender &bull; Scores are based on keyword relevance to your uploaded CV.
+        <br>Update your CV on your profile page to improve match accuracy.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>"""
+
+
+def generate_deadline_alert_html(name: str, alert_opps: list) -> str:
+    rows_html = ""
+    for i, (opp, score) in enumerate(alert_opps):
+        bg = "#ffffff" if i % 2 == 0 else "#f9fafb"
+        deadline = opp.deadline.strftime("%b %d, %Y") if opp.deadline else "—"
+        title = (opp.title or "")[:60] + ("…" if len(opp.title or "") > 60 else "")
+        rows_html += f"""
+        <tr style="background:{bg};">
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">{_score_badge(score)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;">{_type_badge(opp.type)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111827;max-width:260px;">{title}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#374151;">{opp.organization or '—'}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">
+            <span style="font-weight:700;color:#dc2626;">{deadline}</span>
+          </td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;">
+            <a href="{opp.url}" target="_blank"
+               style="display:inline-block;padding:5px 14px;background:#dc2626;color:#fff;
+                      border-radius:6px;text-decoration:none;font-size:12px;font-weight:600;">
+              Apply Now
+            </a>
+          </td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:860px;margin:32px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#dc2626 0%,#b91c1c 100%);padding:36px 40px;text-align:center;">
+      <h1 style="margin:0;color:#fff;font-size:26px;font-weight:800;letter-spacing:-0.5px;">
+        &#9888; Deadline Alert
+      </h1>
+      <p style="margin:10px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
+        These opportunities expire within 48 hours
+      </p>
+    </div>
+
+    <!-- Greeting -->
+    <div style="background:#fff;padding:28px 40px 20px;">
+      <p style="margin:0;font-size:15px;color:#111827;">Hello <strong>{name}</strong>,</p>
+      <p style="margin:10px 0 0;font-size:14px;color:#6b7280;line-height:1.6;">
+        The following opportunities match your profile and are closing very soon.
+        Don't miss out — apply before the deadline!
+      </p>
+    </div>
+
+    <!-- Table -->
+    <div style="background:#fff;padding:0 40px 32px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#fef2f2;border-top:1px solid #fecaca;border-bottom:2px solid #fecaca;">
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Score</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Type</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Title</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Organization</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Deadline</th>
+            <th style="padding:10px 14px;text-align:center;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Link</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#fef2f2;padding:20px 40px;border-top:1px solid #fecaca;text-align:center;">
+      <p style="margin:0;font-size:12px;color:#9ca3af;">
+        AI Job Recommender &bull; You received this because these opportunities match your CV and expire within 48 hours.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>"""
+
+
 async def run_daily_opportunity_digests():
     """Runs daily at 6:00 AM to send top 20 latest matching opportunities."""
     logger.info("Running daily opportunity digests...")
@@ -148,20 +339,28 @@ async def run_daily_opportunity_digests():
             opportunities_with_scores.sort(key=lambda x: x[1], reverse=True)
 
             excel_bytes = generate_excel_attachment(opportunities_with_scores)
-            
-            subject = "Your Daily Top 20 AI Job Matches"
-            body = (
-                f"Hello {user.full_name or user.email},\n\n"
-                "Attached is your daily Excel digest of the top 20 latest opportunities that match your CV profile.\n"
-                "Have a great day!\n\n"
-                "Best,\nAI Job Recommender Team"
+            name = user.full_name or user.email
+            date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+            subject = f"Your Daily Top {len(opportunities_with_scores)} AI Job Matches"
+            plain_body = (
+                f"Hello {name},\n\n"
+                f"Here are your top {len(opportunities_with_scores)} AI-matched opportunities for today.\n"
+                "The full list is attached as an Excel file.\n\n"
+                + "\n".join(
+                    f"[{score}%] {opp.title} — {opp.organization or ''} | Deadline: {opp.deadline.strftime('%Y-%m-%d') if opp.deadline else 'N/A'} | {opp.url}"
+                    for opp, score in opportunities_with_scores
+                )
+                + "\n\nBest,\nAI Job Recommender Team"
             )
-            
+            html_body = generate_digest_html(name, opportunities_with_scores)
+
             await send_email_with_attachment(
                 to_email=user.email,
                 subject=subject,
-                text_content=body,
-                attachment_name=f"opportunity_digest_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.xlsx",
+                text_content=plain_body,
+                html_content=html_body,
+                attachment_name=f"opportunity_digest_{date_str}.xlsx",
                 attachment_bytes=excel_bytes,
                 user_id=user.id,
                 email_type="daily_digest"
@@ -233,18 +432,22 @@ async def run_deadline_alerts():
                     
             if alert_opps:
                 alert_opps.sort(key=lambda x: x[1], reverse=True)
-                
-                body_lines = [f"Hello {user.full_name or user.email},\n", "The following opportunities matching your profile are expiring soon:\n"]
+                name = user.full_name or user.email
+
+                plain_lines = [
+                    f"Hello {name},\n",
+                    "The following opportunities matching your profile are expiring within 48 hours:\n",
+                ]
                 for opp, score in alert_opps:
-                    body_lines.append(f"- {opp.title} at {opp.organization} (Match: {score}%). Deadline: {opp.deadline.strftime('%Y-%m-%d')}")
-                    body_lines.append(f"  Link: {opp.url}\n")
-                    
-                body_lines.append("\nBest,\nAI Job Recommender Team")
-                
+                    plain_lines.append(f"- [{score}%] {opp.title} at {opp.organization}. Deadline: {opp.deadline.strftime('%Y-%m-%d')}")
+                    plain_lines.append(f"  Link: {opp.url}\n")
+                plain_lines.append("\nBest,\nAI Job Recommender Team")
+
                 await send_email_with_attachment(
                     to_email=user.email,
                     subject="Action Required: Highly Matched Opportunities Expiring Soon",
-                    text_content="\n".join(body_lines),
+                    text_content="\n".join(plain_lines),
+                    html_content=generate_deadline_alert_html(name, alert_opps),
                     user_id=user.id,
                     email_type="deadline_alert"
                 )
