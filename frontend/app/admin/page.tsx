@@ -49,7 +49,7 @@ export default function AdminDashboard() {
   const [triggering, setTriggering] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState<null | { processed: number; total: number; pct: number; updated: number; deadline_filled: number; org_filled: number; loc_filled: number }>(null);
-  const [backfillResult, setBackfillResult] = useState<null | { records_updated: number; deadline_filled: number; organization_filled: number; location_filled: number; total_wp_records: number }>(null);
+  const [backfillResult, setBackfillResult] = useState<null | { records_updated: number; deadline_filled: number; organization_filled: number; location_filled: number; total_wp_records: number; skipped_no_raw: number; skipped_no_content: number; skipped_already_complete: number }>(null);
 
   const loadRuns = async () => {
     setRunsLoading(true);
@@ -505,6 +505,13 @@ export default function AdminDashboard() {
                   <span>Organisations filled: <strong style={{ color: "#a89aff" }}>{backfillResult.organization_filled.toLocaleString()}</strong></span>
                   <span>Locations filled: <strong style={{ color: "#00d4ff" }}>{backfillResult.location_filled.toLocaleString()}</strong></span>
                 </div>
+                {(backfillResult.skipped_no_raw > 0 || backfillResult.skipped_no_content > 0 || backfillResult.skipped_already_complete > 0) && (
+                  <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: 8, opacity: 0.7 }}>
+                    {backfillResult.skipped_already_complete > 0 && <span>Already complete: {backfillResult.skipped_already_complete.toLocaleString()}</span>}
+                    {backfillResult.skipped_no_raw > 0 && <span>No raw data: {backfillResult.skipped_no_raw.toLocaleString()}</span>}
+                    {backfillResult.skipped_no_content > 0 && <span>No content HTML: {backfillResult.skipped_no_content.toLocaleString()}</span>}
+                  </div>
+                )}
               </div>
             )}
 

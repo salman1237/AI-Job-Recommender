@@ -60,14 +60,14 @@ _SKIP_CATS = {
     "fellowship-grant",
 }
 
-# Matches "Deadline: Month DD, YYYY" or "Deadline: DD Month YYYY" anywhere in content.
+# Matches "Deadline: <date>" in multiple formats including ordinal suffixes (1st, 3rd, 22nd).
 _DEADLINE_RE = re.compile(
-    r"deadline\s*:\s*"
+    r"deadline\s*[:\-]\s*"
     r"(?:"
-    r"(\w+ \d{1,2},?\s*\d{4})"          # "October 15, 2026" / "October 15 2026"
-    r"|(\d{1,2}\s+\w+\s+\d{4})"         # "15 October 2026"
-    r"|(\d{4}-\d{2}-\d{2})"             # "2026-10-15"
-    r"|(\d{1,2}/\d{1,2}/\d{4})"         # "10/15/2026"
+    r"(\w+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s*\d{4})"       # "Oct 15, 2026" / "June 3rd, 2026"
+    r"|(\d{1,2}(?:st|nd|rd|th)?\.?\s+\w+\.?[,\s]+\d{4})"  # "15 Oct 2026" / "3rd June, 2025"
+    r"|(\d{4}-\d{2}-\d{2})"                                 # "2026-10-15"
+    r"|(\d{1,2}/\d{1,2}/\d{4})"                             # "10/15/2026"
     r")",
     re.IGNORECASE,
 )

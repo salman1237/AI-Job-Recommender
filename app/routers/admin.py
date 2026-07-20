@@ -66,35 +66,50 @@ async def backfill_wp_fields():
             yield _sse({"type": "start", "total": total})
 
             updated = deadline_filled = org_filled = loc_filled = 0
+            no_raw = no_content = already_complete = 0
             pending: list[tuple[int, dict]] = []  # (id, {field: new_value})
 
             for i, opp in enumerate(rows):
-                if opp.raw:
+                if not opp.raw:
+                    no_raw += 1
+                else:
                     content_html = (opp.raw.get("content") or {}).get("rendered")
                     class_list = opp.raw.get("class_list")
-                    patch: dict = {}
 
-                    if opp.deadline is None:
-                        val = _parse_deadline(content_html)
-                        if val:
-                            patch["deadline"] = val
-                            deadline_filled += 1
+                    if not content_html:
+                        no_content += 1
+                    else:
+                        needs_anything = (
+                            opp.deadline is None
+                            or not opp.organization
+                            or not opp.location
+                        )
+                        if not needs_anything:
+                            already_complete += 1
+                        else:
+                            patch: dict = {}
 
-                    if not opp.organization:
-                        val = _parse_organization(content_html)
-                        if val:
-                            patch["organization"] = val
-                            org_filled += 1
+                            if opp.deadline is None:
+                                val = _parse_deadline(content_html)
+                                if val:
+                                    patch["deadline"] = val
+                                    deadline_filled += 1
 
-                    if not opp.location:
-                        val = _parse_location(content_html, class_list)
-                        if val:
-                            patch["location"] = val
-                            loc_filled += 1
+                            if not opp.organization:
+                                val = _parse_organization(content_html)
+                                if val:
+                                    patch["organization"] = val
+                                    org_filled += 1
 
-                    if patch:
-                        pending.append((opp.id, patch))
-                        updated += 1
+                            if not opp.location:
+                                val = _parse_location(content_html, class_list)
+                                if val:
+                                    patch["location"] = val
+                                    loc_filled += 1
+
+                            if patch:
+                                pending.append((opp.id, patch))
+                                updated += 1
 
                 if (i + 1) % 50 == 0 or (i + 1) == total:
                     pct = round((i + 1) / total * 100) if total else 100
@@ -129,6 +144,9 @@ async def backfill_wp_fields():
                 "deadline_filled": deadline_filled,
                 "organization_filled": org_filled,
                 "location_filled": loc_filled,
+                "skipped_no_raw": no_raw,
+                "skipped_no_content": no_content,
+                "skipped_already_complete": already_complete,
             })
         except Exception as exc:
             yield _sse({"type": "error", "message": str(exc)})
