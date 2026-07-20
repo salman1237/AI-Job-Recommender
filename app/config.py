@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ingest_minute_utc: int = 7
     shomvob_token: str = ""
     gemini_api_key: str = ""
+    openai_api_key: str = ""
     jwt_secret: str = "change-me-to-a-random-secret"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 1 week

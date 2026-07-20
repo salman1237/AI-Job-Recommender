@@ -88,21 +88,21 @@ async def get_opportunity_types(session: AsyncSession = Depends(get_session)):
 @router.get("/opportunities/recommended", response_model=RerankedList)
 async def get_recommended_opportunities(
     top_n: int = Query(30, ge=1, le=100, description="Top N from DB to send to AI (max 100)"),
-    refresh: bool = Query(False, description="Force a fresh Gemini call, ignoring cache"),
+    refresh: bool = Query(False, description="Force a fresh AI call, ignoring cache"),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     """
     Returns AI-ranked recommendations for the logged-in user.
-    Results are cached in the DB per user. Pass ?refresh=true to re-run Gemini.
+    Results are cached in the DB per user. Pass ?refresh=true to re-run the AI scorer.
     """
     if not current_user.parsed_cv:
         raise HTTPException(
             status_code=422,
             detail="No CV found on your profile. Please upload your CV first.",
         )
-    if not settings.gemini_api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured")
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
 
     # --- Return cache if exists and refresh not requested ---
     user = await session.get(User, current_user.id)
@@ -145,7 +145,7 @@ async def get_recommended_opportunities(
     
     rows_for_ai = all_rows[:top_n]
 
-    # --- Step 2: Build Gemini prompt ---
+    # --- Step 2: Build scoring prompt ---
     candidate_summary = (
         f"Skills: {', '.join(profile.get('skills', []))}. "
         f"Keywords: {', '.join(profile.get('job_keywords', []))}. "
@@ -164,7 +164,7 @@ async def get_recommended_opportunities(
         for row in rows_for_ai
     ]
 
-    gemini_prompt = f"""You are an expert career advisor. Score each opportunity for the candidate below.
+    scoring_prompt = f"""You are an expert career advisor. Score each opportunity for the candidate below.
 Only give high scores (80+) for genuinely strong matches. Be precise.
 
 CANDIDATE PROFILE:
@@ -176,36 +176,57 @@ OPPORTUNITIES:
 Return ONLY a valid JSON array:
 [{{"id": <opportunity_id>, "match_score": <integer 0-100>, "match_reason": "<one concise sentence>"}}]"""
 
-    # --- Step 3: Call Gemini ---
+    # --- Step 3: Call GPT-5.5 ---
+    _score_schema = {
+        "type": "object",
+        "properties": {
+            "scores": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id":           {"type": "integer"},
+                        "match_score":  {"type": "integer"},
+                        "match_reason": {"type": "string"},
+                    },
+                    "required": ["id", "match_score", "match_reason"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["scores"],
+        "additionalProperties": False,
+    }
+
     fallback_active = False
     scores = []
     try:
         async with httpx.AsyncClient(timeout=45.0) as client:
-            gemini_resp = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+            ai_resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
                 headers={
-                    "X-goog-api-key": settings.gemini_api_key, 
-                    "Content-Type": "application/json"
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json",
                 },
                 json={
-                    "contents": [{"parts": [{"text": gemini_prompt}]}],
-                    "generationConfig": {"response_mime_type": "application/json"},
+                    "model": "gpt-5.5",
+                    "messages": [{"role": "user", "content": scoring_prompt}],
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "job_scores",
+                            "strict": True,
+                            "schema": _score_schema,
+                        },
+                    },
                 },
             )
-            gemini_resp.raise_for_status()
+            ai_resp.raise_for_status()
 
-        raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("\n", 1)[-1]
-        if raw_text.endswith("```"):
-            raw_text = raw_text.rsplit("\n", 1)[0]
-        raw_text = raw_text.strip()
-        
-        scores = json.loads(raw_text)
+        scores = json.loads(ai_resp.json()["choices"][0]["message"]["content"])["scores"]
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning(f"Gemini API failed, falling back to DB ranking. Error: {e}")
+        logging.getLogger(__name__).warning(f"OpenAI API failed, falling back to DB ranking. Error: {e}")
         fallback_active = True
 
     # --- Step 4: Merge rows with scores ---
@@ -271,11 +292,11 @@ async def rerank_opportunities(
 ):
     """
     Fetches the top matching opportunities from the DB using keyword OR-search,
-    then calls Gemini 2.5 Flash to score and rank each one against the
-    candidate's full profile. Returns results sorted by match_score descending.
+    then calls GPT-5.5 to score and rank each one against the candidate's full
+    profile. Returns results sorted by match_score descending.
     """
-    if not settings.gemini_api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured on the server.")
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured on the server.")
 
     if not profile.job_keywords:
         raise HTTPException(status_code=422, detail="CandidateProfile must contain at least one job_keyword.")
@@ -310,7 +331,7 @@ async def rerank_opportunities(
     
     rows_for_ai = all_rows[:top_n]
 
-    # --- Step 2: Build a compact context for Gemini ---
+    # --- Step 2: Build a compact context for the scorer ---
     candidate_summary = (
         f"Skills: {', '.join(profile.skills)}. "
         f"Keywords: {', '.join(profile.job_keywords)}. "
@@ -330,7 +351,7 @@ async def rerank_opportunities(
         for row in rows_for_ai
     ]
 
-    gemini_prompt = f"""You are an expert career advisor. Given the candidate profile and a list of opportunities, \
+    scoring_prompt = f"""You are an expert career advisor. Given the candidate profile and a list of opportunities, \
 return a JSON array scoring each opportunity. Be precise and strict — only give high scores (80+) for genuinely strong matches.
 
 CANDIDATE PROFILE:
@@ -342,36 +363,57 @@ OPPORTUNITIES (list of objects with id, title, type, description, tags):
 Return ONLY a valid JSON array (no markdown, no explanation) in this exact format:
 [{{"id": <opportunity_id>, "match_score": <integer 0-100>, "match_reason": "<one concise sentence why>"}}]"""
 
-    # --- Step 3: Call Gemini ---
-    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
-    payload = {
-        "contents": [{"parts": [{"text": gemini_prompt}]}],
-        "generationConfig": {"response_mime_type": "application/json"},
-    }
-    headers = {
-        "X-goog-api-key": settings.gemini_api_key,
-        "Content-Type": "application/json",
+    # --- Step 3: Call GPT-5.5 ---
+    _score_schema = {
+        "type": "object",
+        "properties": {
+            "scores": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id":           {"type": "integer"},
+                        "match_score":  {"type": "integer"},
+                        "match_reason": {"type": "string"},
+                    },
+                    "required": ["id", "match_score", "match_reason"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["scores"],
+        "additionalProperties": False,
     }
 
     fallback_active = False
     scores = []
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            gemini_resp = await client.post(gemini_url, headers=headers, json=payload)
-            gemini_resp.raise_for_status()
-            
-        raw_text = gemini_resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            ai_resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-5.5",
+                    "messages": [{"role": "user", "content": scoring_prompt}],
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "job_scores",
+                            "strict": True,
+                            "schema": _score_schema,
+                        },
+                    },
+                },
+            )
+            ai_resp.raise_for_status()
 
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("\n", 1)[-1]
-        if raw_text.endswith("```"):
-            raw_text = raw_text.rsplit("\n", 1)[0]
-        raw_text = raw_text.strip()
-        
-        scores = json.loads(raw_text)
+        scores = json.loads(ai_resp.json()["choices"][0]["message"]["content"])["scores"]
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning(f"Gemini API failed during rerank, falling back to DB ranking. Error: {e}")
+        logging.getLogger(__name__).warning(f"OpenAI API failed during rerank, falling back to DB ranking. Error: {e}")
         fallback_active = True
 
     # --- Step 4: Merge scores with DB rows and sort ---

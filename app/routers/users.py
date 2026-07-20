@@ -100,52 +100,88 @@ async def upload_cv(
     if not resume_text:
         raise HTTPException(status_code=422, detail="PDF appears to be empty or image-only")
 
-    # 3. Call Gemini 2.5 Flash to extract structured CV data
-    if not settings.gemini_api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
+    # 3. Call GPT-5.5 to extract structured CV data
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
 
-    prompt = f"""Extract the following information from the resume text below and return it as a single valid JSON object with these exact keys:
-- "skills": array of strings
-- "education": object with keys like "degree", "institution", "year"  
-- "achievements": array of strings
-- "projects": array of objects with keys "name" and "description"
-- "job_keywords": array of strings (all possible job titles, roles, and technologies this candidate should search for)
-
-Return ONLY the raw JSON. No markdown, no explanation.
+    prompt = f"""Extract structured information from the resume text below.
 
 RESUME TEXT:
 {resume_text[:8000]}"""
 
+    cv_schema = {
+        "type": "object",
+        "properties": {
+            "skills":       {"type": "array", "items": {"type": "string"}},
+            "education": {
+                "type": "object",
+                "properties": {
+                    "degree":      {"type": ["string", "null"]},
+                    "institution": {"type": ["string", "null"]},
+                    "year":        {"type": ["string", "null"]},
+                },
+                "required": ["degree", "institution", "year"],
+                "additionalProperties": False,
+            },
+            "achievements": {"type": "array", "items": {"type": "string"}},
+            "projects": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name":        {"type": "string"},
+                        "description": {"type": "string"},
+                    },
+                    "required": ["name", "description"],
+                    "additionalProperties": False,
+                },
+            },
+            "job_keywords": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["skills", "education", "achievements", "projects", "job_keywords"],
+        "additionalProperties": False,
+    }
+
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+                "https://api.openai.com/v1/chat/completions",
                 headers={
-                    "X-goog-api-key": settings.gemini_api_key,
+                    "Authorization": f"Bearer {settings.openai_api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"response_mime_type": "application/json"},
+                    "model": "gpt-5.5",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a CV parser. Extract skills, education, achievements, "
+                                "projects, and job keywords from the resume. "
+                                "job_keywords should include all job titles, roles, and technologies "
+                                "this candidate should search for."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "parsed_cv",
+                            "strict": True,
+                            "schema": cv_schema,
+                        },
+                    },
                 },
             )
             resp.raise_for_status()
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"Gemini error: {e.response.text[:300]}")
+        raise HTTPException(status_code=502, detail=f"OpenAI error: {e.response.text[:300]}")
 
-    raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-    
-    # Clean up markdown code blocks if Gemini returns them
-    if raw_text.startswith("```"):
-        raw_text = raw_text.split("\n", 1)[-1]
-    if raw_text.endswith("```"):
-        raw_text = raw_text.rsplit("\n", 1)[0]
-    raw_text = raw_text.strip()
-        
     try:
-        parsed_cv = json.loads(raw_text)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail=f"Gemini returned invalid JSON: {raw_text[:200]}")
+        parsed_cv = json.loads(resp.json()["choices"][0]["message"]["content"])
+    except (KeyError, json.JSONDecodeError) as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI returned unexpected response: {e}")
 
     # 4. Save parsed CV to DB
     user = await session.get(User, current_user.id)
