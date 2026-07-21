@@ -148,7 +148,7 @@ export default function Navbar() {
 
       <style>{`
         .desktop-nav { display: flex; }
-        .bottom-nav  { display: none; }
+        .bottom-nav  { display: none !important; }
         @media (max-width: 767px) {
           .desktop-nav { display: none !important; }
           .bottom-nav  { display: flex !important; }
