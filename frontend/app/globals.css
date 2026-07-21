@@ -465,6 +465,11 @@ select.input option { background: #fff; color: var(--text-1); }
   .grid-2 { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* Tablet (768–1023px): uses bottom nav, so needs bottom clearance */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .page-wrapper { padding-bottom: calc(var(--bottom-nav-h) + 1.5rem); }
+}
+
 @media (max-width: 479px) {
   .auth-card { padding: 1.5rem 1rem; border-radius: 12px; }
   .page-wrapper {

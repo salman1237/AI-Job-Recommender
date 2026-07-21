@@ -35,9 +35,9 @@ function SortTh({ label, col, sortCol, sortDir, onSort }: { label: string; col: 
 }
 
 export default function BrowsePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  useEffect(() => { if (user === null) router.push("/login"); }, [user, router]);
+  useEffect(() => { if (!authLoading && user === null) router.push("/login"); }, [user, authLoading, router]);
 
   const [opps, setOpps] = useState<Opp[]>([]);
   const [total, setTotal] = useState(0);
