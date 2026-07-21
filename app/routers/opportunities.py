@@ -55,11 +55,12 @@ async def list_opportunities(
     if active_only:
         filters.append(Opportunity.is_active.is_(True))
     if q:
-        # Full-text search via the generated tsvector + GIN index.
-        # OR logic: return an opportunity if it matches ANY of the provided keywords.
+        # Split each phrase into tokens and OR all tokens together so "software engineer"
+        # matches opportunities containing either word, not requiring both.
+        tokens = [token for phrase in q for token in phrase.split()]
         keyword_filters = [
-            Opportunity.search_tsv.op("@@")(func.plainto_tsquery("simple", kw))
-            for kw in q
+            Opportunity.search_tsv.op("@@")(func.plainto_tsquery("simple", token))
+            for token in tokens
         ]
         filters.append(or_(*keyword_filters))
 
