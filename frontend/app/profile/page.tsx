@@ -1,13 +1,13 @@
 "use client";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { uploadAvatar, uploadCV, updateManualProfile } from "@/lib/api";
+import { uploadAvatar, uploadCV, updateManualProfile, changePassword } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import toast from "react-hot-toast";
 import {
   User, Upload, FileText, Loader2, Camera, Sparkles,
-  Plus, X, GraduationCap, Layers, Save, Pencil,
+  Plus, X, GraduationCap, Layers, Save, Pencil, Lock,
 } from "lucide-react";
 
 const CV_STEPS: LoadingStep[] = [
@@ -42,6 +42,12 @@ export default function ProfilePage() {
   const [localProjects, setLocalProjects] = useState<Project[]>([]);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileEdited, setProfileEdited] = useState(false);
+
+  // Password change state
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [changingPw, setChangingPw] = useState(false);
 
   const cv = user?.parsed_cv as Record<string, any> | null;
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -125,6 +131,22 @@ export default function ProfilePage() {
   const removeProject = (i: number) => {
     setLocalProjects(p => p.filter((_, idx) => idx !== i));
     setProfileEdited(true);
+  };
+
+  const handleChangePw = async () => {
+    if (!currentPw || !newPw || !confirmPw) return toast.error("Please fill in all fields.");
+    if (newPw !== confirmPw) return toast.error("New passwords do not match.");
+    if (newPw.length < 8) return toast.error("New password must be at least 8 characters.");
+    setChangingPw(true);
+    try {
+      await changePassword(currentPw, newPw);
+      toast.success("Password changed successfully.");
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    } catch (err: unknown) {
+      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to change password.");
+    } finally {
+      setChangingPw(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -375,6 +397,58 @@ export default function ProfilePage() {
               <p style={{ fontSize: "0.775rem", color: "var(--text-3)", marginTop: 8 }}>
                 AI re-generates your match keywords on every save.
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Change Password Card ── */}
+        <div className="card" style={{ overflow: "hidden", marginTop: "1.25rem" }}>
+          <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+            <h2 style={{ fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+              <Lock size={16} style={{ color: "var(--primary)" }} /> Change Password
+            </h2>
+            <p style={{ color: "var(--text-2)", fontSize: "0.8rem" }}>
+              Update your account password. Minimum 8 characters.
+            </p>
+          </div>
+          <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: 10 }}>
+            <input
+              type="password"
+              className="input"
+              placeholder="Current password"
+              value={currentPw}
+              onChange={e => setCurrentPw(e.target.value)}
+              style={{ fontSize: "0.875rem" }}
+            />
+            <input
+              type="password"
+              className="input"
+              placeholder="New password (min 8 characters)"
+              value={newPw}
+              onChange={e => setNewPw(e.target.value)}
+              style={{ fontSize: "0.875rem" }}
+            />
+            <input
+              type="password"
+              className="input"
+              placeholder="Confirm new password"
+              value={confirmPw}
+              onChange={e => setConfirmPw(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleChangePw()}
+              style={{ fontSize: "0.875rem" }}
+            />
+            <div style={{ paddingTop: 4 }}>
+              <button
+                type="button"
+                onClick={handleChangePw}
+                disabled={changingPw}
+                className="btn btn-primary"
+                style={{ display: "flex", alignItems: "center", gap: 7 }}
+              >
+                {changingPw
+                  ? <><Loader2 size={15} className="spinner" /> Changing…</>
+                  : <><Lock size={15} /> Change Password</>}
+              </button>
             </div>
           </div>
         </div>

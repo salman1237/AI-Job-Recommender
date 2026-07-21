@@ -67,6 +67,9 @@ export const updateManualProfile = (data: {
   projects: { name: string; description: string }[];
 }) => api.put("/users/me/manual-profile", data);
 
+export const changePassword = (current_password: string, new_password: string) =>
+  api.put("/users/me/password", { current_password, new_password });
+
 // ── Opportunities ──────────────────────────────────────────────────────
 export const getRecommended = (refresh = false) =>
   api.get("/opportunities/recommended", { params: { top_n: 30, refresh } });

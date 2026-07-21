@@ -15,6 +15,7 @@ from app.config import settings
 from app.db import get_session
 from app.dependencies import get_current_user
 from app.models import User
+from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -158,8 +159,10 @@ RESUME TEXT:
                             "content": (
                                 "You are a CV parser. Extract skills, education, achievements, "
                                 "projects, and job keywords from the resume. "
-                                "job_keywords should include all job titles, roles, and technologies "
-                                "this candidate should search for."
+                                "job_keywords should be broad, short, searchable terms: role titles WITHOUT seniority "
+                                "qualifiers (write 'Software Engineer' not 'Software Engineer Intern'), "
+                                "technologies, frameworks, and domains the candidate works with. "
+                                "Avoid overly specific multi-word phrases. Aim for 15-25 clean keywords."
                             ),
                         },
                         {"role": "user", "content": prompt},
@@ -295,3 +298,24 @@ async def update_manual_profile(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.put("/me/password")
+async def change_password(
+    body: ChangePasswordIn,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=422, detail="New password must be at least 8 characters.")
+    user = await session.get(User, current_user.id)
+    user.hashed_password = hash_password(body.new_password)
+    await session.commit()
+    return {"message": "Password changed successfully."}
