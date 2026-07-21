@@ -5,7 +5,11 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
 from app.ingest.runner import run_ingestion
-from app.services.email_service import run_daily_opportunity_digests, run_deadline_alerts
+from app.services.email_service import (
+    run_daily_opportunity_digests,
+    run_deadline_alerts,
+    run_saved_search_alerts,
+)
 
 logger = logging.getLogger("aggregator.scheduler")
 
@@ -47,6 +51,16 @@ def start_scheduler() -> None:
         run_deadline_alerts,
         trigger=trigger_emails,
         id="daily_deadline_alerts",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # 4. Saved Search Alerts (01:00 UTC = 7:00 AM BDT, 1 hour after digest)
+    scheduler.add_job(
+        run_saved_search_alerts,
+        trigger=CronTrigger(hour=1, minute=0, timezone="UTC"),
+        id="saved_search_alerts",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

@@ -100,7 +100,7 @@ class IngestResult(BaseModel):
 
 class EmailLogOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: int
     user_id: int
     user_email: str | None = None
@@ -108,3 +108,28 @@ class EmailLogOut(BaseModel):
     status: str
     error_message: str | None = None
     sent_at: datetime
+
+
+class SavedSearchCreate(BaseModel):
+    name: str
+    keywords: str | None = None
+    opp_type: str | None = None
+    country: str | None = None
+
+
+class SavedSearchUpdate(BaseModel):
+    name: str | None = None
+    notify_enabled: bool | None = None
+
+
+class SavedSearchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    keywords: str | None
+    opp_type: str | None
+    country: str | None
+    notify_enabled: bool
+    last_alerted_at: datetime | None
+    created_at: datetime

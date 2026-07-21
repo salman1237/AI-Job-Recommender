@@ -11,13 +11,14 @@ import PyPDF2
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db import get_session
 from app.dependencies import get_current_user
-from app.models import User
+from app.models import SavedSearch, User
+from app.schemas import SavedSearchCreate, SavedSearchOut, SavedSearchUpdate
 from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -379,6 +380,89 @@ async def update_email_preferences(
     await session.commit()
     await session.refresh(user)
     return user
+
+
+MAX_SAVED_SEARCHES = 5
+
+
+@router.get("/me/saved-searches", response_model=list[SavedSearchOut])
+async def list_saved_searches(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(
+        select(SavedSearch)
+        .where(SavedSearch.user_id == current_user.id)
+        .order_by(SavedSearch.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.post("/me/saved-searches", response_model=SavedSearchOut, status_code=201)
+async def create_saved_search(
+    body: SavedSearchCreate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    count = await session.scalar(
+        select(func.count()).select_from(SavedSearch).where(SavedSearch.user_id == current_user.id)
+    )
+    if count >= MAX_SAVED_SEARCHES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum of {MAX_SAVED_SEARCHES} saved searches reached. Delete one to add a new search.",
+        )
+    search = SavedSearch(
+        user_id=current_user.id,
+        name=body.name.strip() or "My Search",
+        keywords=body.keywords or None,
+        opp_type=body.opp_type or None,
+        country=body.country or None,
+    )
+    session.add(search)
+    await session.commit()
+    await session.refresh(search)
+    return search
+
+
+@router.patch("/me/saved-searches/{search_id}", response_model=SavedSearchOut)
+async def update_saved_search(
+    search_id: int,
+    body: SavedSearchUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    search = await session.scalar(
+        select(SavedSearch).where(
+            SavedSearch.id == search_id, SavedSearch.user_id == current_user.id
+        )
+    )
+    if not search:
+        raise HTTPException(status_code=404, detail="Saved search not found.")
+    if body.name is not None:
+        search.name = body.name.strip() or search.name
+    if body.notify_enabled is not None:
+        search.notify_enabled = body.notify_enabled
+    await session.commit()
+    await session.refresh(search)
+    return search
+
+
+@router.delete("/me/saved-searches/{search_id}", status_code=204)
+async def delete_saved_search(
+    search_id: int,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    search = await session.scalar(
+        select(SavedSearch).where(
+            SavedSearch.id == search_id, SavedSearch.user_id == current_user.id
+        )
+    )
+    if not search:
+        raise HTTPException(status_code=404, detail="Saved search not found.")
+    await session.delete(search)
+    await session.commit()
 
 
 def _make_unsub_sig(email: str, type_: str) -> str:

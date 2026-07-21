@@ -5,7 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import { getOpportunities, getOpportunityTypes, getStats } from "@/lib/api";
 import toast from "react-hot-toast";
-import { Search, Filter, Loader2, RefreshCw, ExternalLink, MapPin, Building, Calendar, ChevronLeft, ChevronRight, Globe, X } from "lucide-react";
+import { Search, Filter, Loader2, RefreshCw, ExternalLink, MapPin, Building, Calendar, ChevronLeft, ChevronRight, Globe, X, Bookmark } from "lucide-react";
+import { createSavedSearch } from "@/lib/api";
 
 interface Opp {
   id: number; title: string; type: string; organization: string | null;
@@ -90,6 +91,36 @@ export default function BrowsePage() {
 
   const hasFilters = search || filterType || filterSource || filterCountry || !activeOnly;
   const totalPages = Math.ceil(total / PAGE_SIZE);
+
+  // Save Search modal state
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const openSaveModal = () => {
+    setSaveName(search.trim() || filterType || filterCountry || "My Search");
+    setShowSaveModal(true);
+  };
+
+  const handleSaveSearch = async () => {
+    if (!saveName.trim()) return;
+    setSaving(true);
+    try {
+      await createSavedSearch({
+        name: saveName.trim(),
+        keywords: search.trim() || undefined,
+        opp_type: filterType || undefined,
+        country: filterCountry || undefined,
+      });
+      toast.success("Search saved! You'll get daily email alerts for new matches.");
+      setShowSaveModal(false);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || "Failed to save search.";
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
   const today = new Date();
 
   if (!user) return null;
@@ -137,6 +168,12 @@ export default function BrowsePage() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {hasFilters && (
+              <button onClick={openSaveModal} className="btn btn-outline"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Bookmark size={14} /> Save Search
+              </button>
+            )}
             <button onClick={() => setFiltersOpen(v => !v)} className="btn btn-outline"
               style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Filter size={14} /> Filters {hasFilters ? "•" : ""}
@@ -350,6 +387,46 @@ export default function BrowsePage() {
         </div>
 
       </main>
+
+      {/* Save Search modal */}
+      {showSaveModal && (
+        <div onClick={() => setShowSaveModal(false)} style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
+        }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 400, padding: "1.75rem" }}>
+            <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: 4 }}>Save this search</h3>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-2)", marginBottom: "1.25rem" }}>
+              You'll get a daily email alert when new opportunities match these filters.
+            </p>
+            {/* Summary pills */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: "1rem" }}>
+              {search && <span style={{ padding: "2px 9px", borderRadius: 999, background: "var(--primary-muted)", color: "var(--primary)", fontSize: "0.75rem", fontWeight: 600 }}>keyword: {search}</span>}
+              {filterType && <span style={{ padding: "2px 9px", borderRadius: 999, background: "#f5f3ff", color: "#6d28d9", fontSize: "0.75rem", fontWeight: 600 }}>type: {filterType}</span>}
+              {filterCountry && <span style={{ padding: "2px 9px", borderRadius: 999, background: "#ecfdf5", color: "#047857", fontSize: "0.75rem", fontWeight: 600 }}>country: {filterCountry}</span>}
+            </div>
+            <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-2)", display: "block", marginBottom: 6 }}>
+              Search name
+            </label>
+            <input
+              className="input"
+              value={saveName}
+              onChange={e => setSaveName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSaveSearch()}
+              placeholder="e.g. ML Engineer in Dhaka"
+              autoFocus
+              style={{ marginBottom: "1.25rem" }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowSaveModal(false)} className="btn btn-outline btn-sm">Cancel</button>
+              <button onClick={handleSaveSearch} disabled={saving || !saveName.trim()} className="btn btn-primary btn-sm"
+                style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {saving ? <Loader2 size={13} className="spinner" /> : <Bookmark size={13} />} Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

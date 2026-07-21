@@ -1,13 +1,13 @@
 "use client";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { uploadAvatar, uploadCV, updateManualProfile, changePassword, deleteAccount, updateEmailPreferences } from "@/lib/api";
+import { uploadAvatar, uploadCV, updateManualProfile, changePassword, deleteAccount, updateEmailPreferences, getSavedSearches, updateSavedSearch, deleteSavedSearch } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import toast from "react-hot-toast";
 import {
   User, Upload, FileText, Loader2, Camera, Sparkles,
-  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase, Trash2, Bell,
+  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase, Trash2, Bell, Bookmark,
 } from "lucide-react";
 
 const CV_STEPS: LoadingStep[] = [
@@ -61,6 +61,11 @@ export default function ProfilePage() {
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [savingEmailPrefs, setSavingEmailPrefs] = useState(false);
 
+  // Saved searches state
+  interface SavedSearch { id: number; name: string; keywords: string | null; opp_type: string | null; country: string | null; notify_enabled: boolean; }
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [loadingSearches, setLoadingSearches] = useState(false);
+
   const cv = user?.parsed_cv as Record<string, any> | null;
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -91,6 +96,36 @@ export default function ProfilePage() {
       setAlertsEnabled(user.email_alerts_enabled ?? true);
     }
   }, [user?.email_digest_enabled, user?.email_alerts_enabled]);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoadingSearches(true);
+    getSavedSearches()
+      .then(r => setSavedSearches(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingSearches(false));
+  }, [user?.id]);
+
+  const handleToggleSavedSearch = async (id: number, enabled: boolean) => {
+    setSavedSearches(prev => prev.map(s => s.id === id ? { ...s, notify_enabled: enabled } : s));
+    try {
+      await updateSavedSearch(id, { notify_enabled: enabled });
+    } catch {
+      setSavedSearches(prev => prev.map(s => s.id === id ? { ...s, notify_enabled: !enabled } : s));
+      toast.error("Failed to update saved search.");
+    }
+  };
+
+  const handleDeleteSavedSearch = async (id: number) => {
+    setSavedSearches(prev => prev.filter(s => s.id !== id));
+    try {
+      await deleteSavedSearch(id);
+      toast.success("Saved search deleted.");
+    } catch {
+      getSavedSearches().then(r => setSavedSearches(r.data)).catch(() => {});
+      toast.error("Failed to delete saved search.");
+    }
+  };
 
   if (!user) return null;
 
@@ -560,6 +595,71 @@ export default function ProfilePage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* ── Saved Searches Card ── */}
+        <div className="card" style={{ overflow: "hidden", marginTop: "1.25rem" }}>
+          <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                <Bookmark size={16} style={{ color: "var(--primary)" }} /> Saved Searches
+              </h2>
+              <p style={{ color: "var(--text-2)", fontSize: "0.8rem" }}>
+                Get daily email alerts when new opportunities match these searches. Set filters on Browse, then click "Save Search".
+              </p>
+            </div>
+            <span style={{ fontSize: "0.75rem", color: "var(--text-3)", fontWeight: 600, flexShrink: 0, marginLeft: "1rem" }}>
+              {savedSearches.length}/5 used
+            </span>
+          </div>
+          <div style={{ padding: "1rem 1.5rem", display: "flex", flexDirection: "column", gap: 8 }}>
+            {loadingSearches ? (
+              <div style={{ textAlign: "center", padding: "0.75rem" }}>
+                <Loader2 size={18} className="spinner" style={{ color: "var(--primary)" }} />
+              </div>
+            ) : savedSearches.length === 0 ? (
+              <p style={{ fontSize: "0.84rem", color: "var(--text-3)", textAlign: "center", padding: "0.5rem 0" }}>
+                No saved searches yet. Use filters on the Browse page and click "Save Search".
+              </p>
+            ) : savedSearches.map(s => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "0.75rem 1rem", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "var(--text-1)" }}>{s.name}</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                    {s.keywords && <span style={{ padding: "1px 7px", borderRadius: 999, background: "var(--primary-muted)", color: "var(--primary)", fontSize: "0.7rem", fontWeight: 600 }}>{s.keywords}</span>}
+                    {s.opp_type && <span style={{ padding: "1px 7px", borderRadius: 999, background: "#f5f3ff", color: "#6d28d9", fontSize: "0.7rem", fontWeight: 600 }}>{s.opp_type}</span>}
+                    {s.country && <span style={{ padding: "1px 7px", borderRadius: 999, background: "#ecfdf5", color: "#047857", fontSize: "0.7rem", fontWeight: 600 }}>{s.country}</span>}
+                  </div>
+                </div>
+                {/* Notify toggle */}
+                <button
+                  type="button"
+                  title={s.notify_enabled ? "Alerts on" : "Alerts off"}
+                  onClick={() => handleToggleSavedSearch(s.id, !s.notify_enabled)}
+                  style={{
+                    flexShrink: 0, width: 40, height: 22, borderRadius: 999,
+                    background: s.notify_enabled ? "var(--primary)" : "var(--border)",
+                    border: "none", cursor: "pointer", position: "relative", transition: "background 0.2s",
+                  }}
+                >
+                  <span style={{
+                    position: "absolute", top: 3, left: s.notify_enabled ? 21 : 3,
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 0.2s",
+                  }} />
+                </button>
+                {/* Delete */}
+                <button
+                  type="button"
+                  title="Delete saved search"
+                  onClick={() => handleDeleteSavedSearch(s.id)}
+                  style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", display: "flex", padding: 4 }}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 

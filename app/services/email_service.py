@@ -6,9 +6,10 @@ from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 import aiosmtplib
 import openpyxl
-from sqlalchemy import select, or_, func
+from sqlalchemy import func, or_, select, update
+from sqlalchemy.orm import selectinload
 from app.db import async_session
-from app.models import User, Opportunity, EmailLog
+from app.models import EmailLog, Opportunity, SavedSearch, User
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -727,6 +728,183 @@ async def run_daily_opportunity_digests():
                 user_id=user.id,
                 email_type="daily_digest"
             )
+
+def generate_saved_search_html(search_name: str, opportunities: list, email: str = "") -> str:
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    count = len(opportunities)
+
+    rows_html = ""
+    for i, (opp, score) in enumerate(opportunities):
+        bg = "#ffffff" if i % 2 == 0 else "#f9fafb"
+        deadline = opp.deadline.strftime("%b %d, %Y") if opp.deadline else "—"
+        title = (opp.title or "")[:60] + ("…" if len(opp.title or "") > 60 else "")
+        org = opp.organization or "—"
+        location = opp.location or "—"
+        rows_html += f"""
+        <tr style="background:{bg};">
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;">{_type_badge(opp.type)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111827;max-width:240px;">{title}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#374151;">{org}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;color:#374151;">{location}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;white-space:nowrap;color:#6b7280;">{deadline}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:center;">
+            <a href="{opp.apply_url or opp.url}" target="_blank"
+               style="display:inline-block;padding:5px 14px;background:#4f46e5;color:#fff;
+                      border-radius:6px;text-decoration:none;font-size:12px;font-weight:600;">
+              Apply
+            </a>
+          </td>
+        </tr>"""
+
+    browse_url = f"{settings.app_url}/browse"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:860px;margin:32px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+    <div style="background:linear-gradient(135deg,#4f46e5 0%,#6d28d9 100%);padding:36px 40px;text-align:center;">
+      <p style="margin:0 0 6px;color:rgba(255,255,255,0.75);font-size:13px;text-transform:uppercase;letter-spacing:.08em;">Saved Search Alert</p>
+      <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">{search_name}</h1>
+      <p style="margin:10px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">{count} new match{"es" if count != 1 else ""} &bull; {date_str}</p>
+    </div>
+
+    <div style="background:#fff;padding:28px 40px 20px;">
+      <p style="margin:0;font-size:14px;color:#6b7280;line-height:1.6;">
+        New opportunities matching your saved search <strong>"{search_name}"</strong> have been posted since your last alert.
+      </p>
+    </div>
+
+    <div style="background:#fff;padding:0 40px 32px;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#f9fafb;border-top:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;">
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Type</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Title</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Organization</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Location</th>
+            <th style="padding:10px 14px;text-align:left;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Deadline</th>
+            <th style="padding:10px 14px;text-align:center;font-weight:700;color:#374151;font-size:12px;text-transform:uppercase;letter-spacing:.05em;">Link</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center;">
+      <a href="{browse_url}" style="display:inline-block;margin-bottom:14px;padding:9px 22px;background:#4f46e5;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">
+        Browse All Opportunities →
+      </a>
+      <p style="margin:0;font-size:11px;color:#cbd5e1;">
+        <a href="{_unsub_url(email, 'alerts')}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe from saved search alerts</a>
+        &nbsp;&bull;&nbsp;
+        <a href="{_unsub_url(email, 'all')}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe from all emails</a>
+        &nbsp;&bull;&nbsp;
+        <a href="{settings.app_url}/profile" style="color:#94a3b8;text-decoration:underline;">Manage saved searches</a>
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>"""
+
+
+async def run_saved_search_alerts():
+    """Runs daily at 01:00 UTC to alert users about new opportunities matching their saved searches."""
+    logger.info("Running saved search alerts...")
+    async with async_session() as session:
+        result = await session.execute(
+            select(SavedSearch)
+            .join(User)
+            .where(SavedSearch.notify_enabled.is_(True))
+            .where(User.email_alerts_enabled.is_(True))
+            .options(selectinload(SavedSearch.user))
+        )
+        searches = result.scalars().all()
+
+        for search in searches:
+            now = datetime.now(timezone.utc)
+            cutoff = search.last_alerted_at or (now - timedelta(hours=24))
+
+            filters = [Opportunity.is_active.is_(True), Opportunity.created_at > cutoff]
+
+            if search.keywords:
+                tokens = search.keywords.split()
+                filters.append(
+                    or_(*[
+                        Opportunity.search_tsv.op("@@")(func.plainto_tsquery("simple", t))
+                        for t in tokens
+                    ])
+                )
+            if search.opp_type:
+                filters.append(Opportunity.type == search.opp_type)
+            if search.country:
+                filters.append(Opportunity.country.ilike(f"%{search.country}%"))
+
+            # Use ts_rank for relevance score if keywords present
+            if search.keywords:
+                tokens = search.keywords.split()
+                ts_query = func.websearch_to_tsquery(
+                    "simple", " OR ".join(f'"{t}"' for t in tokens)
+                )
+                rank_col = func.ts_rank(Opportunity.search_tsv, ts_query).label("rank")
+                stmt = (
+                    select(Opportunity, rank_col)
+                    .where(*filters)
+                    .order_by(rank_col.desc(), Opportunity.posted_at.desc().nullslast())
+                    .limit(20)
+                )
+                rows = (await session.execute(stmt)).all()
+                all_ranks = [r[1] for r in rows] if rows else []
+                max_rank = max(all_ranks) if all_ranks else 1.0
+                if max_rank <= 0:
+                    max_rank = 1.0
+                opps_with_score = [(row, int((rank / max_rank) * 100)) for row, rank in rows]
+            else:
+                stmt = (
+                    select(Opportunity)
+                    .where(*filters)
+                    .order_by(Opportunity.posted_at.desc().nullslast())
+                    .limit(20)
+                )
+                rows = (await session.execute(stmt)).scalars().all()
+                opps_with_score = [(opp, 100) for opp in rows]
+
+            if not opps_with_score:
+                continue
+
+            user = search.user
+            name = user.full_name or user.email
+            count = len(opps_with_score)
+            subject = f'[{search.name}] {count} new match{"es" if count != 1 else ""} found'
+            plain = (
+                f"Hello {name},\n\n"
+                f"{count} new opportunit{'ies' if count != 1 else 'y'} matching your saved search "
+                f'"{search.name}" have been posted:\n\n'
+                + "\n".join(
+                    f"- {opp.title} — {opp.organization or ''} | {opp.apply_url or opp.url}"
+                    for opp, _ in opps_with_score
+                )
+                + f"\n\nBrowse all: {settings.app_url}/browse\n\nBest,\nOpportunity Finder Team"
+            )
+
+            await send_email_with_attachment(
+                to_email=user.email,
+                subject=subject,
+                text_content=plain,
+                html_content=generate_saved_search_html(search.name, opps_with_score, email=user.email),
+                user_id=user.id,
+                email_type="saved_search_alert",
+            )
+
+            await session.execute(
+                update(SavedSearch)
+                .where(SavedSearch.id == search.id)
+                .values(last_alerted_at=now)
+            )
+            await session.commit()
+
 
 async def run_deadline_alerts():
     """Runs to alert users of opportunities expiring in the next 48 hours."""
