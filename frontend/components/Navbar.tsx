@@ -93,7 +93,8 @@ export default function Navbar() {
         position: "fixed",
         bottom: 0, left: 0, right: 0,
         zIndex: 50,
-        height: "var(--bottom-nav-h)",
+        height: "calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
         background: "var(--surface)",
         borderTop: "1px solid var(--border)",
         display: "flex",
@@ -114,7 +115,6 @@ export default function Navbar() {
               color: active ? "var(--primary)" : "var(--text-3)",
               fontSize: "0.65rem",
               fontWeight: active ? 700 : 500,
-              paddingBottom: "env(safe-area-inset-bottom)",
               background: active ? "rgba(79,70,229,0.06)" : "transparent",
               borderTop: active ? "2px solid var(--primary)" : "2px solid transparent",
               transition: "all 0.15s",
@@ -139,7 +139,6 @@ export default function Navbar() {
           cursor: "pointer",
           borderTop: "2px solid transparent",
           fontFamily: "inherit",
-          paddingBottom: "env(safe-area-inset-bottom)",
         }}>
           <LogOut size={22} />
           Logout

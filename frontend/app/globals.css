@@ -413,7 +413,7 @@ select.input option { background: #fff; color: var(--text-1); }
   .page-wrapper {
     padding: 1.25rem 1rem;
     padding-top: calc(var(--nav-h) + 1.25rem);
-    padding-bottom: calc(var(--bottom-nav-h) + 1.5rem);
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1.5rem);
   }
 
   /* Filter bar → column */
@@ -467,7 +467,7 @@ select.input option { background: #fff; color: var(--text-1); }
 
 /* Tablet (768–1023px): uses bottom nav, so needs bottom clearance */
 @media (min-width: 768px) and (max-width: 1023px) {
-  .page-wrapper { padding-bottom: calc(var(--bottom-nav-h) + 1.5rem); }
+  .page-wrapper { padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1.5rem); }
 }
 
 @media (max-width: 479px) {
@@ -475,7 +475,7 @@ select.input option { background: #fff; color: var(--text-1); }
   .page-wrapper {
     padding: 1rem 0.75rem;
     padding-top: calc(var(--nav-h) + 1rem);
-    padding-bottom: calc(var(--bottom-nav-h) + 1.25rem);
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px) + 1.25rem);
   }
   /* Wider auth card (profile step) still fits on tiny screens */
   .auth-card-wide { max-width: 100% !important; padding: 1.25rem 1rem !important; }
