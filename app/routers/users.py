@@ -189,3 +189,109 @@ RESUME TEXT:
     await session.commit()
     await session.refresh(user)
     return user
+
+
+class ManualProfileIn(BaseModel):
+    skills: list[str] = []
+    education: dict | None = None
+    achievements: list[str] = []
+    projects: list[dict] = []
+
+
+@router.put("/me/manual-profile", response_model=UserOut)
+async def update_manual_profile(
+    body: ManualProfileIn,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is not configured")
+
+    lines = []
+    if body.skills:
+        lines.append(f"Skills: {', '.join(body.skills)}")
+    if body.education:
+        edu = body.education
+        lines.append(
+            f"Education: {edu.get('degree', '')} at {edu.get('institution', '')} ({edu.get('year', '')})"
+        )
+    if body.achievements:
+        lines.append(f"Achievements: {'; '.join(body.achievements)}")
+    for p in body.projects:
+        name = p.get("name", "")
+        desc = p.get("description", "")
+        lines.append(f"Project '{name}': {desc}")
+
+    profile_text = "\n".join(lines) if lines else "No profile data provided."
+
+    keywords_schema = {
+        "type": "object",
+        "properties": {
+            "job_keywords": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["job_keywords"],
+        "additionalProperties": False,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "gpt-5.5",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a career AI. Given a candidate's profile, generate a list of "
+                                "targeted job keywords they should search for — job titles, roles, "
+                                "technologies, domains, and opportunity types that best match their background. "
+                                "Return 15-30 keywords."
+                            ),
+                        },
+                        {"role": "user", "content": profile_text},
+                    ],
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "keywords_result",
+                            "strict": True,
+                            "schema": keywords_schema,
+                        },
+                    },
+                },
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI error: {e.response.text[:300]}")
+
+    try:
+        ai_result = json.loads(resp.json()["choices"][0]["message"]["content"])
+        job_keywords = ai_result.get("job_keywords", [])
+    except (KeyError, json.JSONDecodeError) as e:
+        raise HTTPException(status_code=502, detail=f"OpenAI returned unexpected response: {e}")
+
+    existing = dict(current_user.parsed_cv or {})
+    education = (
+        body.education
+        or existing.get("education")
+        or {"degree": None, "institution": None, "year": None}
+    )
+
+    updated_cv = {
+        "skills": body.skills,
+        "education": education,
+        "achievements": body.achievements,
+        "projects": body.projects,
+        "job_keywords": job_keywords,
+    }
+
+    user = await session.get(User, current_user.id)
+    user.parsed_cv = updated_cv
+    await session.commit()
+    await session.refresh(user)
+    return user

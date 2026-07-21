@@ -1,11 +1,14 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { uploadAvatar, uploadCV } from "@/lib/api";
+import { uploadAvatar, uploadCV, updateManualProfile } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import toast from "react-hot-toast";
-import { User, Upload, FileText, Loader2, Camera, Sparkles } from "lucide-react";
+import {
+  User, Upload, FileText, Loader2, Camera, Sparkles,
+  Plus, X, GraduationCap, Layers, Save, Pencil,
+} from "lucide-react";
 
 const CV_STEPS: LoadingStep[] = [
   { label: "Uploading your PDF…",            duration: 2000 },
@@ -22,12 +25,45 @@ const CV_TIPS = [
   "After parsing, head to My Matches to see your AI-ranked opportunities!",
 ];
 
+type Edu = { degree: string; institution: string; year: string };
+type Project = { name: string; description: string };
+
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCV, setUploadingCV] = useState(false);
   const avatarRef = useRef<HTMLInputElement>(null);
   const cvRef = useRef<HTMLInputElement>(null);
+
+  // Manual profile state
+  const [localSkills, setLocalSkills] = useState<string[]>([]);
+  const [skillInput, setSkillInput] = useState("");
+  const [localEdu, setLocalEdu] = useState<Edu>({ degree: "", institution: "", year: "" });
+  const [localProjects, setLocalProjects] = useState<Project[]>([]);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileEdited, setProfileEdited] = useState(false);
+
+  const cv = user?.parsed_cv as Record<string, any> | null;
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
+  // Sync local state whenever parsed_cv changes (after CV upload or manual save)
+  useEffect(() => {
+    if (cv) {
+      setLocalSkills((cv.skills as string[]) || []);
+      setLocalEdu({
+        degree: cv.education?.degree || "",
+        institution: cv.education?.institution || "",
+        year: cv.education?.year || "",
+      });
+      setLocalProjects((cv.projects as Project[]) || []);
+    } else {
+      setLocalSkills([]);
+      setLocalEdu({ degree: "", institution: "", year: "" });
+      setLocalProjects([]);
+    }
+    setProfileEdited(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.parsed_cv]);
 
   if (!user) return null;
 
@@ -60,53 +96,85 @@ export default function ProfilePage() {
     }
   };
 
-  const cv = user.parsed_cv as Record<string, any> | null;
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  // Skills helpers
+  const commitSkill = () => {
+    const val = skillInput.trim().replace(/,$/, "");
+    if (val && !localSkills.includes(val)) {
+      setLocalSkills(s => [...s, val]);
+      setProfileEdited(true);
+    }
+    setSkillInput("");
+  };
+  const onSkillKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commitSkill(); }
+  };
+  const removeSkill = (s: string) => {
+    setLocalSkills(sk => sk.filter(x => x !== s));
+    setProfileEdited(true);
+  };
+
+  // Project helpers
+  const addProject = () => {
+    setLocalProjects(p => [...p, { name: "", description: "" }]);
+    setProfileEdited(true);
+  };
+  const updateProject = (i: number, field: keyof Project, val: string) => {
+    setLocalProjects(p => p.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
+    setProfileEdited(true);
+  };
+  const removeProject = (i: number) => {
+    setLocalProjects(p => p.filter((_, idx) => idx !== i));
+    setProfileEdited(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    const toastId = toast.loading("AI is generating your match keywords…");
+    try {
+      await updateManualProfile({
+        skills: localSkills,
+        education: localEdu.degree || localEdu.institution
+          ? { degree: localEdu.degree, institution: localEdu.institution, year: localEdu.year }
+          : null,
+        achievements: (cv?.achievements as string[]) || [],
+        projects: localProjects.filter(p => p.name.trim()),
+      });
+      await refreshUser();
+      toast.success("Profile saved & keywords refreshed!", { id: toastId });
+      setProfileEdited(false);
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to save profile",
+        { id: toastId }
+      );
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   return (
     <>
       <Navbar />
       <main className="page-wrapper" style={{ maxWidth: 900, margin: "0 auto" }}>
 
-        {/* Profile Header Card */}
+        {/* ── Profile Header Card ── */}
         <div className="card" style={{ padding: "1.75rem", marginBottom: "1.25rem" }}>
-          <div className="profile-header" style={{ display: "flex", gap: "1.75rem", alignItems: "center" }}>
-
-            {/* Avatar */}
+          <div style={{ display: "flex", gap: "1.75rem", alignItems: "center" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <div style={{
-                width: 88, height: 88, borderRadius: "50%",
-                background: "var(--surface-2)",
-                border: "2px solid var(--border)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                overflow: "hidden",
-              }}>
+              <div style={{ width: 88, height: 88, borderRadius: "50%", background: "var(--surface-2)", border: "2px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 {user.avatar_path ? (
-                  <img
-                    src={`${apiBase}/uploads/avatars/${user.avatar_path.split("/").pop()?.split("\\").pop()}`}
-                    alt="Avatar"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
+                  <img src={`${apiBase}/uploads/avatars/${user.avatar_path.split("/").pop()?.split("\\").pop()}`}
+                    alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   <User size={36} style={{ color: "var(--text-3)" }} />
                 )}
               </div>
-              <button
-                disabled={uploadingAvatar}
-                onClick={() => avatarRef.current?.click()}
-                style={{
-                  position: "absolute", bottom: 0, right: 0,
-                  width: 28, height: 28, borderRadius: "50%",
-                  background: "var(--primary)", color: "#fff", border: "2px solid #fff",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", boxShadow: "0 2px 8px rgba(79,70,229,0.4)",
-                }}>
+              <button disabled={uploadingAvatar} onClick={() => avatarRef.current?.click()}
+                style={{ position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: "50%", background: "var(--primary)", color: "#fff", border: "2px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 2px 8px rgba(79,70,229,0.4)" }}>
                 {uploadingAvatar ? <Loader2 size={13} className="spinner" /> : <Camera size={13} />}
               </button>
               <input type="file" hidden ref={avatarRef} accept="image/*" onChange={handleAvatar} />
             </div>
-
-            {/* Info */}
             <div style={{ flex: 1 }}>
               <h1 style={{ fontSize: "1.4rem", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>
                 {user.full_name || "Your Profile"}
@@ -119,17 +187,16 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* CV Card */}
-        <div className="card" style={{ overflow: "hidden" }}>
-          {/* Header */}
+        {/* ── CV Card ── */}
+        <div className="card" style={{ overflow: "hidden", marginBottom: "1.25rem" }}>
           <div style={{ padding: "1.5rem", borderBottom: uploadingCV || cv ? "1px solid var(--border)" : undefined }}>
-            <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <h2 style={{ fontSize: "1.1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
                   <FileText size={18} style={{ color: "var(--primary)" }} /> AI Resume Profile
                 </h2>
                 <p style={{ color: "var(--text-2)", fontSize: "0.8125rem", maxWidth: 520, lineHeight: 1.55 }}>
-                  Upload your latest PDF CV. AI will parse your skills, education, and projects to automatically match you with the best opportunities.
+                  Upload your latest PDF CV. AI will parse your skills, education, and projects automatically.
                 </p>
               </div>
               <button onClick={() => cvRef.current?.click()} disabled={uploadingCV} className="btn btn-primary"
@@ -141,73 +208,175 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* AI loading while parsing */}
-          {uploadingCV && (
-            <AILoadingState steps={CV_STEPS} tips={CV_TIPS} compact />
-          )}
+          {uploadingCV && <AILoadingState steps={CV_STEPS} tips={CV_TIPS} compact />}
 
-          {/* CV data */}
           {cv && !uploadingCV && (
-            <div style={{ padding: "1.5rem" }}>
-              <div className="grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: cv.projects?.length ? "1.5rem" : 0 }}>
-
-                {/* Skills */}
-                <div>
-                  <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-                    Extracted Skills
-                  </h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {cv.skills?.map((s: string, i: number) => (
-                      <span key={i} style={{ padding: "3px 9px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 999, fontSize: "0.775rem", color: "var(--text-1)", fontWeight: 500 }}>
-                        {s}
-                      </span>
-                    ))}
-                    {!cv.skills?.length && <span style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>No skills extracted</span>}
-                  </div>
-                </div>
-
-                {/* Keywords */}
-                <div>
-                  <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-                    Target Keywords
-                  </h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {cv.job_keywords?.map((k: string, i: number) => (
-                      <span key={i} style={{ padding: "3px 9px", background: "var(--primary-muted)", border: "1px solid rgba(79,70,229,0.2)", borderRadius: 999, fontSize: "0.775rem", color: "var(--primary)", fontWeight: 500 }}>
-                        {k}
-                      </span>
-                    ))}
-                    {!cv.job_keywords?.length && <span style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>No keywords extracted</span>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Projects */}
-              {cv.projects && cv.projects.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.875rem" }}>
-                    Projects & Experience
-                  </h3>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                    {cv.projects.map((p: any, i: number) => (
-                      <div key={i} style={{ padding: "0.875rem 1rem", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8 }}>
-                        <h4 style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: 4 }}>{p.name}</h4>
-                        <p style={{ fontSize: "0.8125rem", color: "var(--text-2)", lineHeight: 1.55 }}>{p.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div style={{ padding: "1rem 1.5rem", background: "var(--success-muted)", borderBottom: "1px solid #d1fae5", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: "0.8125rem", color: "var(--success)", fontWeight: 600 }}>
+                ✓ CV parsed — {cv.skills?.length || 0} skills · {cv.projects?.length || 0} projects · {cv.job_keywords?.length || 0} AI keywords
+              </span>
             </div>
           )}
 
-          {/* Empty state when no CV */}
           {!cv && !uploadingCV && (
             <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--text-2)" }}>
               <Sparkles size={32} style={{ color: "var(--text-3)", margin: "0 auto 0.75rem" }} />
-              <p style={{ fontSize: "0.875rem" }}>No CV uploaded yet. Upload a PDF to get AI-matched opportunities.</p>
+              <p style={{ fontSize: "0.875rem" }}>No CV uploaded. Upload a PDF or fill in your details below.</p>
             </div>
           )}
+        </div>
+
+        {/* ── Manual Profile Editor ── */}
+        <div className="card" style={{ overflow: "hidden" }}>
+          {/* Header */}
+          <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                <Pencil size={16} style={{ color: "var(--primary)" }} /> Skills & Experience
+              </h2>
+              <p style={{ color: "var(--text-2)", fontSize: "0.8rem", lineHeight: 1.5 }}>
+                {cv
+                  ? "Auto-populated from your CV. Edit and save to re-rank with updated AI keywords."
+                  : "No CV? Enter your details manually — AI generates your match keywords on save."}
+              </p>
+            </div>
+            {profileEdited && (
+              <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--warning)", background: "var(--warning-muted)", padding: "3px 10px", borderRadius: 999, flexShrink: 0 }}>
+                Unsaved changes
+              </span>
+            )}
+          </div>
+
+          <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+
+            {/* Skills */}
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-1)", marginBottom: "0.625rem" }}>
+                <Layers size={14} style={{ color: "var(--primary)" }} /> Skills
+              </label>
+              {localSkills.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                  {localSkills.map(s => (
+                    <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px 3px 10px", background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 999, fontSize: "0.775rem", color: "var(--text-1)", fontWeight: 500 }}>
+                      {s}
+                      <button type="button" onClick={() => removeSkill(s)}
+                        style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 0, color: "var(--text-3)" }}>
+                        <X size={11} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  className="input" placeholder="Type a skill and press Enter or comma…"
+                  value={skillInput}
+                  onChange={e => setSkillInput(e.target.value)}
+                  onKeyDown={onSkillKey}
+                  onBlur={commitSkill}
+                  style={{ flex: 1, fontSize: "0.875rem" }}
+                />
+                <button type="button" onClick={commitSkill} className="btn btn-outline btn-sm" style={{ flexShrink: 0 }}>
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Education */}
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-1)", marginBottom: "0.625rem" }}>
+                <GraduationCap size={14} style={{ color: "var(--primary)" }} /> Education
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input className="input" placeholder="Degree (e.g. BSc Computer Science)" value={localEdu.degree}
+                  onChange={e => { setLocalEdu(d => ({ ...d, degree: e.target.value })); setProfileEdited(true); }}
+                  style={{ fontSize: "0.875rem" }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+                  <input className="input" placeholder="Institution" value={localEdu.institution}
+                    onChange={e => { setLocalEdu(d => ({ ...d, institution: e.target.value })); setProfileEdited(true); }}
+                    style={{ fontSize: "0.875rem" }} />
+                  <input className="input" placeholder="Year" value={localEdu.year}
+                    onChange={e => { setLocalEdu(d => ({ ...d, year: e.target.value })); setProfileEdited(true); }}
+                    style={{ width: 80, fontSize: "0.875rem" }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Projects */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.625rem" }}>
+                <label style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-1)", display: "flex", alignItems: "center", gap: 6 }}>
+                  Projects
+                </label>
+                <button type="button" onClick={addProject} className="btn btn-outline btn-sm" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Plus size={13} /> Add Project
+                </button>
+              </div>
+
+              {localProjects.length === 0 && (
+                <p style={{ fontSize: "0.8rem", color: "var(--text-3)", fontStyle: "italic" }}>
+                  No projects yet. Click "Add Project" to include your work.
+                </p>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {localProjects.map((p, i) => (
+                  <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "0.875rem", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input className="input" placeholder="Project name" value={p.name}
+                        onChange={e => updateProject(i, "name", e.target.value)}
+                        style={{ flex: 1, fontSize: "0.875rem", fontWeight: 600 }} />
+                      <button type="button" onClick={() => removeProject(i)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", display: "flex", padding: 4 }}>
+                        <X size={15} />
+                      </button>
+                    </div>
+                    <textarea className="input" placeholder="Brief description of what you built, technologies used, impact…"
+                      value={p.description}
+                      onChange={e => updateProject(i, "description", e.target.value)}
+                      rows={2} style={{ fontSize: "0.8125rem", resize: "vertical" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* AI Keywords (read-only) */}
+            {cv && cv.job_keywords?.length > 0 && (
+              <div>
+                <label style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-2)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "0.625rem" }}>
+                  AI Match Keywords
+                </label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(cv?.job_keywords as string[]).map((k: string, i: number) => (
+                    <span key={i} style={{ padding: "3px 9px", background: "var(--primary-muted)", border: "1px solid rgba(79,70,229,0.2)", borderRadius: 999, fontSize: "0.775rem", color: "var(--primary)", fontWeight: 500 }}>
+                      {k}
+                    </span>
+                  ))}
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "var(--text-3)", marginTop: 8 }}>
+                  Regenerated by AI each time you save. These drive your opportunity matches.
+                </p>
+              </div>
+            )}
+
+            {/* Save button */}
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1.25rem" }}>
+              <button
+                type="button"
+                onClick={handleSaveProfile}
+                disabled={savingProfile}
+                className="btn btn-primary"
+                style={{ display: "flex", alignItems: "center", gap: 7 }}
+              >
+                {savingProfile
+                  ? <><Loader2 size={15} className="spinner" /> Generating keywords…</>
+                  : <><Save size={15} /> Save & Re-rank with AI</>}
+              </button>
+              <p style={{ fontSize: "0.775rem", color: "var(--text-3)", marginTop: 8 }}>
+                AI re-generates your match keywords on every save.
+              </p>
+            </div>
+          </div>
         </div>
 
       </main>

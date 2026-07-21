@@ -60,6 +60,13 @@ export const uploadCV = (file: File) => {
   return api.post("/users/me/cv", fd);
 };
 
+export const updateManualProfile = (data: {
+  skills: string[];
+  education: { degree: string; institution: string; year: string } | null;
+  achievements: string[];
+  projects: { name: string; description: string }[];
+}) => api.put("/users/me/manual-profile", data);
+
 // ── Opportunities ──────────────────────────────────────────────────────
 export const getRecommended = (refresh = false) =>
   api.get("/opportunities/recommended", { params: { top_n: 30, refresh } });
