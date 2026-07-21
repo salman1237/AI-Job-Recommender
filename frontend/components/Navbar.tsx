@@ -39,7 +39,7 @@ export default function Navbar() {
         <Link href="/opportunities" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flexShrink: 0 }}>
           <Image src="/logo.png" alt="Opportunity Finder" width={30} height={30} style={{ objectFit: "contain", borderRadius: 6 }} priority />
           <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--primary)", letterSpacing: "-0.01em" }}>
-            OppFinder
+            Opportunity Finder
           </span>
         </Link>
 
