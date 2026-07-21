@@ -82,6 +82,10 @@ export const getAdminOpportunities = (params: Record<string, unknown>) =>
 
 export const getStats = () => api.get("/stats");
 
+export const getLandingContent = () => api.get("/config/landing");
+export const updateLandingContent = (data: unknown) => api.put("/admin/landing", data);
+export const resetLandingContent = () => api.delete("/admin/landing");
+
 // ── Admin ──────────────────────────────────────────────────────────────
 export const triggerIngest = () => api.post("/admin/ingest");
 export const triggerEmails = () => api.post("/admin/trigger-emails");

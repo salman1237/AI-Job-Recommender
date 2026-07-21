@@ -6,14 +6,27 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel
+
 from app.config import settings
 from app.db import get_session
 from app.ingest.runner import run_ingestion
 from app.ingest.wordpress import _parse_deadline, _parse_organization, _parse_location
+from app.models import SiteConfig
+from app.routers.config import DEFAULT_LANDING
 from app.schemas import IngestResult, RunOut, EmailLogOut
 from app.services.email_service import run_daily_opportunity_digests, run_deadline_alerts
 
 from app.dependencies import require_admin, require_admin_or_cron
+
+
+class LandingUpdate(BaseModel):
+    hero: dict
+    stats: list
+    types_label: str
+    how_it_works: dict
+    features: dict
+    cta_banner: dict
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -204,5 +217,29 @@ async def list_email_logs(
         log_out = EmailLogOut.model_validate(log)
         log_out.user_email = email
         out.append(log_out)
-        
+
     return out
+
+
+@router.put("/landing", dependencies=[Depends(require_admin)])
+async def update_landing_content(
+    body: LandingUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    data = body.model_dump()
+    record = await session.get(SiteConfig, "landing_page")
+    if record:
+        record.value = data
+    else:
+        session.add(SiteConfig(key="landing_page", value=data))
+    await session.commit()
+    return data
+
+
+@router.delete("/landing", dependencies=[Depends(require_admin)])
+async def reset_landing_content(session: AsyncSession = Depends(get_session)):
+    record = await session.get(SiteConfig, "landing_page")
+    if record:
+        await session.delete(record)
+        await session.commit()
+    return DEFAULT_LANDING

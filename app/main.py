@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.db import engine
 from app.models import Base
-from app.routers import admin, auth, opportunities, stats, users
+from app.routers import admin, auth, config, opportunities, stats, users
 from app.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +58,7 @@ app.include_router(users.router)
 app.include_router(opportunities.router)
 app.include_router(stats.router)
 app.include_router(admin.router)
+app.include_router(config.router)
 
 
 @app.get("/health", tags=["meta"])
