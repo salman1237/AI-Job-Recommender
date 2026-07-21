@@ -243,7 +243,7 @@ export default function ProfilePage() {
 
         {/* ── Profile Header Card ── */}
         <div className="card" style={{ padding: "1.75rem", marginBottom: "1.25rem" }}>
-          <div style={{ display: "flex", gap: "1.75rem", alignItems: "center" }}>
+          <div className="profile-header" style={{ display: "flex", gap: "1.75rem", alignItems: "center" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
               <div style={{ width: 88, height: 88, borderRadius: "50%", background: "var(--surface-2)", border: "2px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 {user.avatar_path ? (
@@ -274,12 +274,12 @@ export default function ProfilePage() {
         {/* ── CV Card ── */}
         <div className="card" style={{ overflow: "hidden", marginBottom: "1.25rem" }}>
           <div style={{ padding: "1.5rem", borderBottom: uploadingCV || cv ? "1px solid var(--border)" : undefined }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="card-header-actions" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
               <div>
                 <h2 style={{ fontSize: "1.1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
                   <FileText size={18} style={{ color: "var(--primary)" }} /> AI Resume Profile
                 </h2>
-                <p style={{ color: "var(--text-2)", fontSize: "0.8125rem", maxWidth: 520, lineHeight: 1.55 }}>
+                <p style={{ color: "var(--text-2)", fontSize: "0.8125rem", maxWidth: 480, lineHeight: 1.55 }}>
                   Upload your latest PDF CV. AI will parse your skills, education, and projects automatically.
                 </p>
               </div>
@@ -375,13 +375,13 @@ export default function ProfilePage() {
                 <input className="input" placeholder="Degree (e.g. BSc Computer Science)" value={localEdu.degree}
                   onChange={e => { setLocalEdu(d => ({ ...d, degree: e.target.value })); setProfileEdited(true); }}
                   style={{ fontSize: "0.875rem" }} />
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+                <div className="sub-grid-auto" style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 8 }}>
                   <input className="input" placeholder="Institution" value={localEdu.institution}
                     onChange={e => { setLocalEdu(d => ({ ...d, institution: e.target.value })); setProfileEdited(true); }}
                     style={{ fontSize: "0.875rem" }} />
                   <input className="input" placeholder="Year" value={localEdu.year}
                     onChange={e => { setLocalEdu(d => ({ ...d, year: e.target.value })); setProfileEdited(true); }}
-                    style={{ width: 80, fontSize: "0.875rem" }} />
+                    style={{ fontSize: "0.875rem" }} />
                 </div>
               </div>
             </div>
@@ -415,13 +415,13 @@ export default function ProfilePage() {
                         <X size={15} />
                       </button>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+                    <div className="sub-grid-auto" style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 8 }}>
                       <input className="input" placeholder="Company / Organization" value={exp.company}
                         onChange={e => updateExperience(i, "company", e.target.value)}
                         style={{ fontSize: "0.875rem" }} />
                       <input className="input" placeholder="Duration" value={exp.duration}
                         onChange={e => updateExperience(i, "duration", e.target.value)}
-                        style={{ width: 130, fontSize: "0.875rem" }} />
+                        style={{ fontSize: "0.875rem" }} />
                     </div>
                     <textarea className="input" placeholder="Responsibilities and achievements…"
                       value={exp.description}

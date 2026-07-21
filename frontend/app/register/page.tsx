@@ -14,6 +14,7 @@ import {
 
 type Step = "details" | "otp" | "profile";
 const STEP_IDX: Record<Step, number> = { details: 0, otp: 1, profile: 2 };
+type Experience = { title: string; company: string; duration: string; description: string };
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function RegisterPage() {
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [edu, setEdu] = useState({ degree: "", institution: "", year: "" });
+  const [localExperience, setLocalExperience] = useState<Experience[]>([]);
   const [projects, setProjects] = useState<{ name: string; description: string }[]>([]);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingCV, setUploadingCV] = useState(false);
@@ -86,6 +88,13 @@ export default function RegisterPage() {
     if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addSkill(); }
   };
 
+  const addExperience = () =>
+    setLocalExperience(e => [...e, { title: "", company: "", duration: "", description: "" }]);
+  const updateExperience = (i: number, field: keyof Experience, val: string) =>
+    setLocalExperience(e => e.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
+  const removeExperience = (i: number) =>
+    setLocalExperience(e => e.filter((_, idx) => idx !== i));
+
   const addProject = () =>
     setProjects(p => [...p, { name: "", description: "" }]);
 
@@ -109,6 +118,7 @@ export default function RegisterPage() {
           institution: cv.education?.institution || "",
           year: cv.education?.year || "",
         });
+        setLocalExperience((cv.experience as Experience[]) || []);
         setProjects((cv.projects as { name: string; description: string }[]) || []);
         setCvParsed(true);
       }
@@ -137,7 +147,7 @@ export default function RegisterPage() {
       await updateManualProfile({
         skills,
         education: edu.degree || edu.institution ? { degree: edu.degree, institution: edu.institution, year: edu.year } : null,
-        experience: [],
+        experience: localExperience.filter(e => e.title.trim() || e.company.trim()),
         achievements: [],
         projects: projects.filter(p => p.name.trim()),
       });
@@ -159,7 +169,7 @@ export default function RegisterPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="auth-card"
+        className={`auth-card${step === "profile" ? " auth-card-wide" : ""}`}
         style={step === "profile" ? { maxWidth: 520, width: "100%" } : undefined}
       >
         {/* Header */}
@@ -348,13 +358,56 @@ export default function RegisterPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <input className="input" placeholder="Degree (e.g. BSc Computer Science)" value={edu.degree}
                     onChange={e => setEdu(d => ({ ...d, degree: e.target.value }))} style={{ fontSize: "0.875rem" }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+                  <div className="sub-grid-auto" style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 8 }}>
                     <input className="input" placeholder="Institution" value={edu.institution}
                       onChange={e => setEdu(d => ({ ...d, institution: e.target.value }))} style={{ fontSize: "0.875rem" }} />
                     <input className="input" placeholder="Year" value={edu.year}
                       onChange={e => setEdu(d => ({ ...d, year: e.target.value }))}
-                      style={{ width: 80, fontSize: "0.875rem" }} />
+                      style={{ fontSize: "0.875rem" }} />
                   </div>
+                </div>
+              </div>
+
+              {/* Work Experience */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.625rem" }}>
+                  <label style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-1)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Briefcase size={14} style={{ color: "var(--primary)" }} /> Work Experience <span style={{ color: "var(--text-3)", fontWeight: 400 }}>(optional)</span>
+                  </label>
+                  <button type="button" onClick={addExperience} className="btn btn-outline btn-sm" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
+                {localExperience.length === 0 && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-3)", fontStyle: "italic" }}>
+                    No experience added. You can add it later in your profile.
+                  </p>
+                )}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {localExperience.map((exp, i) => (
+                    <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "0.75rem", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <input className="input" placeholder="Job title" value={exp.title}
+                          onChange={e => updateExperience(i, "title", e.target.value)}
+                          style={{ flex: 1, fontSize: "0.875rem" }} />
+                        <button type="button" onClick={() => removeExperience(i)}
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", display: "flex", padding: 4 }}>
+                          <X size={15} />
+                        </button>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <input className="input" placeholder="Company" value={exp.company}
+                          onChange={e => updateExperience(i, "company", e.target.value)}
+                          style={{ flex: "1 1 120px", fontSize: "0.85rem" }} />
+                        <input className="input" placeholder="Duration (e.g. 2022–2024)" value={exp.duration}
+                          onChange={e => updateExperience(i, "duration", e.target.value)}
+                          style={{ flex: "1 1 120px", fontSize: "0.85rem" }} />
+                      </div>
+                      <textarea className="input" placeholder="Brief description…" value={exp.description}
+                        onChange={e => updateExperience(i, "description", e.target.value)}
+                        rows={2} style={{ fontSize: "0.8125rem", resize: "vertical" }} />
+                    </div>
+                  ))}
                 </div>
               </div>
 
