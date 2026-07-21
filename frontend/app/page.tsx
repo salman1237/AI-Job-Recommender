@@ -95,7 +95,7 @@ export default function LandingPage() {
           <div style={{ width: 32, height: 32, background: "var(--primary)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Briefcase size={17} color="#fff" />
           </div>
-          <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--text-1)", letterSpacing: "-0.02em" }}>OpportunityAI</span>
+          <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--text-1)", letterSpacing: "-0.02em" }}>Opportunity Finder</span>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <Link href="/login" style={{ padding: "6px 14px", fontSize: "0.875rem", fontWeight: 600, color: "var(--text-2)", textDecoration: "none", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
@@ -230,7 +230,7 @@ export default function LandingPage() {
       {/* ── Footer ── */}
       <footer style={{ borderTop: "1px solid var(--border)", padding: "1.75rem 1.5rem", textAlign: "center" }}>
         <p style={{ fontSize: "0.8125rem", color: "var(--text-3)" }}>
-          © {new Date().getFullYear()} OpportunityAI — AI-powered career discovery.{" "}
+          © {new Date().getFullYear()} Opportunity Finder — AI-powered career discovery.{" "}
           <Link href="/login" style={{ color: "var(--text-3)", textDecoration: "none" }}>Sign in</Link>{" · "}
           <Link href="/register" style={{ color: "var(--text-3)", textDecoration: "none" }}>Register</Link>
         </p>

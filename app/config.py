@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     mail_username: str = ""
     mail_password: str = ""
     mail_from_address: str = ""
-    mail_from_name: str = "AI Job Recommender"
+    mail_from_name: str = "Opportunity Finder"
+    app_url: str = "https://opportunityfinder.app"
 
     # Descriptive UA for outbound requests (Phase 8 — be polite to sources).
     user_agent: str = (

@@ -101,7 +101,7 @@ def generate_excel_attachment(opportunities) -> bytes:
 async def send_otp_email(to_email: str, otp: str):
     """Send a 6-digit OTP verification code to a new user."""
     plain = (
-        f"Your AI Job Recommender verification code is: {otp}\n"
+        f"Your Opportunity Finder verification code is: {otp}\n"
         "This code expires in 10 minutes. Do not share it with anyone."
     )
     html = f"""<!DOCTYPE html>
@@ -111,7 +111,7 @@ async def send_otp_email(to_email: str, otp: str):
   <div style="max-width:480px;margin:48px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
     <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:32px;text-align:center;">
       <h1 style="margin:0;color:#fff;font-size:22px;font-weight:800;">Verify your email</h1>
-      <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">AI Job Recommender</p>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Opportunity Finder</p>
     </div>
     <div style="background:#fff;padding:36px 40px;text-align:center;">
       <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
@@ -125,7 +125,7 @@ async def send_otp_email(to_email: str, otp: str):
       </p>
     </div>
     <div style="background:#f9fafb;padding:16px;text-align:center;border-top:1px solid #e5e7eb;">
-      <p style="margin:0;font-size:11px;color:#9ca3af;">AI Job Recommender &bull; Do not share this code with anyone.</p>
+      <p style="margin:0;font-size:11px;color:#9ca3af;">Opportunity Finder &bull; Do not share this code with anyone.</p>
     </div>
   </div>
 </body>
@@ -141,7 +141,7 @@ async def send_otp_email(to_email: str, otp: str):
 async def send_welcome_email(to_email: str, name: str):
     """Send a welcome email with the full platform guide after successful registration."""
     display_name = name or to_email.split("@")[0]
-    plain = f"""Welcome to OpportunityAI, {display_name}!
+    plain = f"""Welcome to Opportunity Finder, {display_name}!
 
 Your account is ready. Here's how to get the most out of the platform:
 
@@ -176,15 +176,15 @@ Deadline Alerts: 48-hour warnings for high-match opportunities about to close.
 4. Use Browse to discover opportunities outside your current keyword set.
 5. Your match score is based on keyword relevance — the more specific your skills, the better.
 
-Visit the platform: https://opportunityai.com
+Visit the platform: {settings.app_url}
 Questions? Reply to this email.
 
-– The OpportunityAI Team
+– The Opportunity Finder Team
 """
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Welcome to OpportunityAI</title>
+<title>Welcome to Opportunity Finder</title>
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
 <div style="max-width:620px;margin:40px auto;border-radius:14px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
@@ -192,7 +192,7 @@ Questions? Reply to this email.
   <!-- Header -->
   <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:40px 40px 32px;text-align:center;">
     <div style="display:inline-block;width:52px;height:52px;background:rgba(255,255,255,0.18);border-radius:14px;line-height:52px;font-size:26px;margin-bottom:16px;">🎯</div>
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Welcome to OpportunityAI!</h1>
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Welcome to Opportunity Finder!</h1>
     <p style="margin:10px 0 0;color:rgba(255,255,255,0.82);font-size:14px;">Your AI-powered career discovery platform is ready</p>
   </div>
 
@@ -373,13 +373,13 @@ Questions? Reply to this email.
   <div style="background:#4f46e5;padding:32px 40px;text-align:center;">
     <h2 style="margin:0 0 10px;color:#fff;font-size:18px;font-weight:800;">Ready to find your next opportunity?</h2>
     <p style="margin:0 0 22px;color:rgba(255,255,255,0.8);font-size:14px;">Start by uploading your CV or filling in your profile.</p>
-    <a href="https://opportunityai.com/profile" style="display:inline-block;background:#fff;color:#4f46e5;font-weight:800;font-size:14px;padding:12px 32px;border-radius:8px;text-decoration:none;letter-spacing:-.01em;">Go to My Profile →</a>
+    <a href="{settings.app_url}/profile" style="display:inline-block;background:#fff;color:#4f46e5;font-weight:800;font-size:14px;padding:12px 32px;border-radius:8px;text-decoration:none;letter-spacing:-.01em;">Go to My Profile →</a>
   </div>
 
   <!-- Footer -->
   <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
     <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.7;">
-      OpportunityAI &bull; AI-Powered Career Discovery<br>
+      Opportunity Finder &bull; AI-Powered Career Discovery<br>
       You received this because you just created an account. Questions? Reply to this email.
     </p>
   </div>
@@ -389,7 +389,7 @@ Questions? Reply to this email.
 </html>"""
     await send_email_with_attachment(
         to_email=to_email,
-        subject=f"Welcome to OpportunityAI, {display_name}! Here's your complete guide",
+        subject=f"Welcome to Opportunity Finder, {display_name}! Here's your complete guide",
         text_content=plain,
         html_content=html,
     )
@@ -398,7 +398,7 @@ Questions? Reply to this email.
 async def send_password_reset_email(to_email: str, token: str):
     """Send a 6-digit password reset code."""
     plain = (
-        f"Your AI Job Recommender password reset code is: {token}\n"
+        f"Your Opportunity Finder password reset code is: {token}\n"
         "This code expires in 15 minutes. If you did not request a reset, ignore this email."
     )
     html = f"""<!DOCTYPE html>
@@ -408,7 +408,7 @@ async def send_password_reset_email(to_email: str, token: str):
   <div style="max-width:480px;margin:48px auto;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
     <div style="background:linear-gradient(135deg,#d97706 0%,#b45309 100%);padding:32px;text-align:center;">
       <h1 style="margin:0;color:#fff;font-size:22px;font-weight:800;">Reset your password</h1>
-      <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">AI Job Recommender</p>
+      <p style="margin:8px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Opportunity Finder</p>
     </div>
     <div style="background:#fff;padding:36px 40px;text-align:center;">
       <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
@@ -422,7 +422,7 @@ async def send_password_reset_email(to_email: str, token: str):
       </p>
     </div>
     <div style="background:#f9fafb;padding:16px;text-align:center;border-top:1px solid #e5e7eb;">
-      <p style="margin:0;font-size:11px;color:#9ca3af;">AI Job Recommender &bull; Never share this code with anyone.</p>
+      <p style="margin:0;font-size:11px;color:#9ca3af;">Opportunity Finder &bull; Never share this code with anyone.</p>
     </div>
   </div>
 </body>
@@ -534,7 +534,7 @@ def generate_digest_html(name: str, opportunities_with_scores: list) -> str:
     <!-- Footer -->
     <div style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center;">
       <p style="margin:0;font-size:12px;color:#9ca3af;">
-        AI Job Recommender &bull; Scores are based on keyword relevance to your uploaded CV.
+        Opportunity Finder &bull; Scores are based on keyword relevance to your uploaded CV.
         <br>Update your CV on your profile page to improve match accuracy.
       </p>
     </div>
@@ -614,7 +614,7 @@ def generate_deadline_alert_html(name: str, alert_opps: list) -> str:
     <!-- Footer -->
     <div style="background:#fef2f2;padding:20px 40px;border-top:1px solid #fecaca;text-align:center;">
       <p style="margin:0;font-size:12px;color:#9ca3af;">
-        AI Job Recommender &bull; You received this because these opportunities match your CV and expire within 48 hours.
+        Opportunity Finder &bull; You received this because these opportunities match your CV and expire within 48 hours.
       </p>
     </div>
 
@@ -688,7 +688,7 @@ async def run_daily_opportunity_digests():
                     f"[{score}%] {opp.title} — {opp.organization or ''} | Deadline: {opp.deadline.strftime('%Y-%m-%d') if opp.deadline else 'N/A'} | {opp.url}"
                     for opp, score in opportunities_with_scores
                 )
-                + "\n\nBest,\nAI Job Recommender Team"
+                + "\n\nBest,\nOpportunity Finder Team"
             )
             html_body = generate_digest_html(name, opportunities_with_scores)
 
@@ -778,7 +778,7 @@ async def run_deadline_alerts():
                 for opp, score in alert_opps:
                     plain_lines.append(f"- [{score}%] {opp.title} at {opp.organization}. Deadline: {opp.deadline.strftime('%Y-%m-%d')}")
                     plain_lines.append(f"  Link: {opp.url}\n")
-                plain_lines.append("\nBest,\nAI Job Recommender Team")
+                plain_lines.append("\nBest,\nOpportunity Finder Team")
 
                 await send_email_with_attachment(
                     to_email=user.email,
