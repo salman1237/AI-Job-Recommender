@@ -32,6 +32,8 @@ class User(Base):
     parsed_cv: Mapped[dict | None] = mapped_column(JSONB)
     cached_recommendations: Mapped[list | None] = mapped_column(JSONB)
     recommendations_cached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_alerts_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

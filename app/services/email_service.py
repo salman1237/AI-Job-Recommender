@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 import io
 from datetime import datetime, timezone, timedelta
@@ -10,6 +12,13 @@ from app.models import User, Opportunity, EmailLog
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _unsub_url(email: str, type_: str) -> str:
+    from urllib.parse import quote
+    sig = hmac.new(settings.jwt_secret.encode(), f"{email}:{type_}".encode(), hashlib.sha256).hexdigest()
+    return f"{settings.api_url.rstrip('/')}/users/unsubscribe?email={quote(email)}&type={type_}&sig={sig}"
+
 
 async def send_email_with_attachment(to_email: str, subject: str, text_content: str, html_content: str = None, attachment_name: str = None, attachment_bytes: bytes = None, user_id: int = None, email_type: str = None):
     if not settings.mail_host or not settings.mail_username:
@@ -464,7 +473,7 @@ def _type_badge(type_str: str) -> str:
         f'text-transform:capitalize;">{type_str or "—"}</span>'
     )
 
-def generate_digest_html(name: str, opportunities_with_scores: list) -> str:
+def generate_digest_html(name: str, opportunities_with_scores: list, email: str = "") -> str:
     date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
     count = len(opportunities_with_scores)
 
@@ -537,6 +546,13 @@ def generate_digest_html(name: str, opportunities_with_scores: list) -> str:
         Opportunity Finder &bull; Scores are based on keyword relevance to your uploaded CV.
         <br>Update your CV on your profile page to improve match accuracy.
       </p>
+      <p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">
+        <a href="{_unsub_url(email, 'digest')}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe from daily digest</a>
+        &nbsp;&bull;&nbsp;
+        <a href="{_unsub_url(email, 'all')}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe from all emails</a>
+        &nbsp;&bull;&nbsp;
+        <a href="{settings.app_url}/profile" style="color:#94a3b8;text-decoration:underline;">Manage preferences</a>
+      </p>
     </div>
 
   </div>
@@ -544,7 +560,7 @@ def generate_digest_html(name: str, opportunities_with_scores: list) -> str:
 </html>"""
 
 
-def generate_deadline_alert_html(name: str, alert_opps: list) -> str:
+def generate_deadline_alert_html(name: str, alert_opps: list, email: str = "") -> str:
     rows_html = ""
     for i, (opp, score) in enumerate(alert_opps):
         bg = "#ffffff" if i % 2 == 0 else "#f9fafb"
@@ -616,6 +632,13 @@ def generate_deadline_alert_html(name: str, alert_opps: list) -> str:
       <p style="margin:0;font-size:12px;color:#9ca3af;">
         Opportunity Finder &bull; You received this because these opportunities match your CV and expire within 48 hours.
       </p>
+      <p style="margin:10px 0 0;font-size:11px;color:#cbd5e1;">
+        <a href="{_unsub_url(email, 'alerts')}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe from deadline alerts</a>
+        &nbsp;&bull;&nbsp;
+        <a href="{_unsub_url(email, 'all')}" style="color:#94a3b8;text-decoration:underline;">Unsubscribe from all emails</a>
+        &nbsp;&bull;&nbsp;
+        <a href="{settings.app_url}/profile" style="color:#94a3b8;text-decoration:underline;">Manage preferences</a>
+      </p>
     </div>
 
   </div>
@@ -632,9 +655,11 @@ async def run_daily_opportunity_digests():
         users = (await session.execute(stmt)).scalars().all()
 
         for user in users:
+            if not user.email_digest_enabled:
+                continue
             if not user.parsed_cv:
                 continue
-                
+
             keywords = user.parsed_cv.get("job_keywords", [])[:15]
             if not keywords:
                 continue
@@ -690,7 +715,7 @@ async def run_daily_opportunity_digests():
                 )
                 + "\n\nBest,\nOpportunity Finder Team"
             )
-            html_body = generate_digest_html(name, opportunities_with_scores)
+            html_body = generate_digest_html(name, opportunities_with_scores, email=user.email)
 
             await send_email_with_attachment(
                 to_email=user.email,
@@ -728,9 +753,11 @@ async def run_deadline_alerts():
         users = (await session.execute(user_stmt)).scalars().all()
         
         for user in users:
+            if not user.email_alerts_enabled:
+                continue
             if not user.parsed_cv:
                 continue
-            
+
             keywords = user.parsed_cv.get("job_keywords", [])[:15]
             if not keywords:
                 continue
@@ -784,7 +811,7 @@ async def run_deadline_alerts():
                     to_email=user.email,
                     subject="Action Required: Highly Matched Opportunities Expiring Soon",
                     text_content="\n".join(plain_lines),
-                    html_content=generate_deadline_alert_html(name, alert_opps),
+                    html_content=generate_deadline_alert_html(name, alert_opps, email=user.email),
                     user_id=user.id,
                     email_type="deadline_alert"
                 )

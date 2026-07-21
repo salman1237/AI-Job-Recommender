@@ -1,4 +1,6 @@
 """User profile routes: get profile, upload avatar, upload & parse CV."""
+import hashlib
+import hmac
 import io
 import json
 import os
@@ -6,9 +8,10 @@ from pathlib import Path
 
 import httpx
 import PyPDF2
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -36,6 +39,8 @@ class UserOut(BaseModel):
     role: str
     avatar_path: str | None
     parsed_cv: dict | None
+    email_digest_enabled: bool = True
+    email_alerts_enabled: bool = True
 
     class Config:
         from_attributes = True
@@ -355,3 +360,53 @@ async def delete_account(
     await session.delete(user)
     await session.commit()
     return {"message": "Account deleted successfully."}
+
+
+class EmailPreferencesIn(BaseModel):
+    email_digest_enabled: bool
+    email_alerts_enabled: bool
+
+
+@router.put("/me/email-preferences", response_model=UserOut)
+async def update_email_preferences(
+    body: EmailPreferencesIn,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    user = await session.get(User, current_user.id)
+    user.email_digest_enabled = body.email_digest_enabled
+    user.email_alerts_enabled = body.email_alerts_enabled
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+def _make_unsub_sig(email: str, type_: str) -> str:
+    key = settings.jwt_secret.encode()
+    msg = f"{email}:{type_}".encode()
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+@router.get("/unsubscribe")
+async def unsubscribe(
+    email: str = Query(...),
+    type: str = Query(..., description="digest | alerts | all"),
+    sig: str = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Public one-click unsubscribe link embedded in emails. No login required."""
+    expected = _make_unsub_sig(email, type)
+    if not hmac.compare_digest(expected, sig):
+        raise HTTPException(status_code=400, detail="Invalid unsubscribe link.")
+
+    user = await session.scalar(select(User).where(User.email == email))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    if type in ("digest", "all"):
+        user.email_digest_enabled = False
+    if type in ("alerts", "all"):
+        user.email_alerts_enabled = False
+    await session.commit()
+
+    return RedirectResponse(url=f"{settings.app_url}/unsubscribe-success?type={type}&done=1", status_code=302)

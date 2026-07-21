@@ -73,6 +73,9 @@ export const changePassword = (current_password: string, new_password: string) =
 
 export const deleteAccount = () => api.delete("/users/me");
 
+export const updateEmailPreferences = (email_digest_enabled: boolean, email_alerts_enabled: boolean) =>
+  api.put("/users/me/email-preferences", { email_digest_enabled, email_alerts_enabled });
+
 // ── Opportunities ──────────────────────────────────────────────────────
 export const getRecommended = (refresh = false) =>
   api.get("/opportunities/recommended", { params: { top_n: 30, refresh } });

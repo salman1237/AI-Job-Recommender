@@ -9,6 +9,8 @@ interface User {
   role: string;
   avatar_path: string | null;
   parsed_cv: Record<string, unknown> | null;
+  email_digest_enabled: boolean;
+  email_alerts_enabled: boolean;
 }
 
 interface AuthContextType {

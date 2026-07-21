@@ -1,13 +1,13 @@
 "use client";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { uploadAvatar, uploadCV, updateManualProfile, changePassword, deleteAccount } from "@/lib/api";
+import { uploadAvatar, uploadCV, updateManualProfile, changePassword, deleteAccount, updateEmailPreferences } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import toast from "react-hot-toast";
 import {
   User, Upload, FileText, Loader2, Camera, Sparkles,
-  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase, Trash2,
+  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase, Trash2, Bell,
 } from "lucide-react";
 
 const CV_STEPS: LoadingStep[] = [
@@ -56,6 +56,11 @@ export default function ProfilePage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
 
+  // Email preferences state
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [savingEmailPrefs, setSavingEmailPrefs] = useState(false);
+
   const cv = user?.parsed_cv as Record<string, any> | null;
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -79,6 +84,13 @@ export default function ProfilePage() {
     setProfileEdited(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.parsed_cv]);
+
+  useEffect(() => {
+    if (user) {
+      setDigestEnabled(user.email_digest_enabled ?? true);
+      setAlertsEnabled(user.email_alerts_enabled ?? true);
+    }
+  }, [user?.email_digest_enabled, user?.email_alerts_enabled]);
 
   if (!user) return null;
 
@@ -154,6 +166,19 @@ export default function ProfilePage() {
   const removeProject = (i: number) => {
     setLocalProjects(p => p.filter((_, idx) => idx !== i));
     setProfileEdited(true);
+  };
+
+  const handleSaveEmailPrefs = async (newDigest: boolean, newAlerts: boolean) => {
+    setSavingEmailPrefs(true);
+    try {
+      await updateEmailPreferences(newDigest, newAlerts);
+      await refreshUser();
+      toast.success("Email preferences saved.");
+    } catch {
+      toast.error("Failed to save preferences.");
+    } finally {
+      setSavingEmailPrefs(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -481,6 +506,60 @@ export default function ProfilePage() {
                 AI re-generates your match keywords on every save.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Email Preferences Card ── */}
+        <div className="card" style={{ overflow: "hidden", marginTop: "1.25rem" }}>
+          <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)" }}>
+            <h2 style={{ fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+              <Bell size={16} style={{ color: "var(--primary)" }} /> Email Notifications
+            </h2>
+            <p style={{ color: "var(--text-2)", fontSize: "0.8rem" }}>
+              Control which automated emails you receive. Changes apply immediately.
+            </p>
+          </div>
+          <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Daily digest toggle */}
+            {(["digest", "alerts"] as const).map(type => {
+              const isDigest = type === "digest";
+              const enabled = isDigest ? digestEnabled : alertsEnabled;
+              const setEnabled = isDigest ? setDigestEnabled : setAlertsEnabled;
+              const label = isDigest ? "Daily Job Digest" : "Deadline Alerts";
+              const desc = isDigest
+                ? "Receive your top AI-matched opportunities every morning with an Excel attachment."
+                : "Get a 48-hour warning when a high-match opportunity is about to close.";
+              return (
+                <div key={type} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "0.875rem 1rem", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: "0.875rem", fontWeight: 700, color: "var(--text-1)" }}>{label}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: "0.775rem", color: "var(--text-3)", lineHeight: 1.5 }}>{desc}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={savingEmailPrefs}
+                    onClick={() => {
+                      const next = !enabled;
+                      setEnabled(next);
+                      handleSaveEmailPrefs(isDigest ? next : digestEnabled, isDigest ? alertsEnabled : next);
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      width: 44, height: 24, borderRadius: 999,
+                      background: enabled ? "var(--primary)" : "var(--border)",
+                      border: "none", cursor: savingEmailPrefs ? "wait" : "pointer",
+                      position: "relative", transition: "background 0.2s",
+                    }}
+                  >
+                    <span style={{
+                      position: "absolute", top: 3, left: enabled ? 23 : 3,
+                      width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                      boxShadow: "0 1px 4px rgba(0,0,0,0.2)", transition: "left 0.2s",
+                    }} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
