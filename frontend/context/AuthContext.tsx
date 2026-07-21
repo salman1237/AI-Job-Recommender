@@ -15,7 +15,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (token: string) => void;
+  login: (token: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -46,10 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = (t: string) => {
+  const login = async (t: string) => {
     localStorage.setItem("token", t);
     setToken(t);
-    refreshUser();
+    await refreshUser();
   };
 
   const logout = () => {

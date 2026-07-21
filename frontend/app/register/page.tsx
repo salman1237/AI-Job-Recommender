@@ -17,7 +17,7 @@ const STEP_IDX: Record<Step, number> = { details: 0, otp: 1, profile: 2 };
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { login: saveToken } = useAuth();
+  const { login: saveToken, refreshUser } = useAuth();
 
   const [step, setStep] = useState<Step>("details");
   const [form, setForm] = useState({ email: "", password: "", full_name: "" });
@@ -55,7 +55,7 @@ export default function RegisterPage() {
     setCreating(true);
     try {
       const { data } = await register(form.email, form.password, form.full_name, otp);
-      saveToken(data.access_token);
+      await saveToken(data.access_token);
       setStep("profile");
     } catch (err: unknown) {
       toast.error((err as any)?.response?.data?.detail || "Registration failed");
@@ -123,6 +123,15 @@ export default function RegisterPage() {
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
+
+    if (cvParsed) {
+      // CV already fully saved to DB by the upload step — just sync context and go
+      await refreshUser();
+      router.push("/opportunities");
+      setSavingProfile(false);
+      return;
+    }
+
     const toastId = toast.loading("AI is generating your match keywords…");
     try {
       await updateManualProfile({
@@ -132,6 +141,7 @@ export default function RegisterPage() {
         achievements: [],
         projects: projects.filter(p => p.name.trim()),
       });
+      await refreshUser();
       toast.success("Profile saved! Finding your matches…", { id: toastId });
       router.push("/opportunities");
     } catch (err: unknown) {
@@ -388,7 +398,10 @@ export default function RegisterPage() {
                 <button type="button" onClick={handleSaveProfile} disabled={savingProfile} className="btn btn-primary" style={{ width: "100%", height: 42, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
                   {savingProfile ? <><Loader2 size={16} className="spinner" /> Generating your keywords…</> : "Save & Find Matches"}
                 </button>
-                <button type="button" onClick={() => router.push("/opportunities")}
+                <button type="button" onClick={async () => {
+                    if (cvParsed) await refreshUser();
+                    router.push("/opportunities");
+                  }}
                   style={{ width: "100%", padding: "10px", background: "none", border: "none", color: "var(--text-2)", fontSize: "0.875rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
                   Skip for now
                 </button>
