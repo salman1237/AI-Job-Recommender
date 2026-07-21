@@ -64,7 +64,7 @@ export default function BrowsePage() {
     setLoading(true);
     try {
       const params: Record<string, unknown> = { page, page_size: PAGE_SIZE, active_only: activeOnly, sort_by: sortCol, sort_dir: sortDir };
-      if (search.trim()) params.q = search.trim().split(/\s+/).slice(0, 5);
+      if (search.trim()) params.q = [search.trim()]; // send as single phrase; plainto_tsquery handles multi-word AND internally
       if (filterType) params.type = filterType;
       if (filterSource) params.source = filterSource;
       if (filterCountry) params.country = filterCountry;
@@ -147,22 +147,29 @@ export default function BrowsePage() {
           </div>
         </div>
 
+        {/* Search bar — always visible */}
+        <div style={{ position: "relative", marginBottom: "1rem" }}>
+          <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", pointerEvents: "none" }} />
+          <input
+            className="input"
+            placeholder='Search by keyword, title, or organisation…'
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            onKeyDown={e => e.key === "Enter" && fetchOpps()}
+            style={{ paddingLeft: "2.25rem", fontSize: "0.9375rem", height: 44 }}
+          />
+          {search && (
+            <button onClick={() => { setSearch(""); setPage(1); }}
+              style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", display: "flex" }}>
+              <X size={15} />
+            </button>
+          )}
+        </div>
+
         {/* Filter panel */}
         {filtersOpen && (
           <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
             <div className="filter-bar">
-              {/* Search */}
-              <div style={{ flex: "2 1 220px", minWidth: 180 }}>
-                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Search</label>
-                <div style={{ position: "relative" }}>
-                  <Search size={13} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-3)", pointerEvents: "none" }} />
-                  <input className="input" placeholder="keyword, location…" value={search}
-                    onChange={e => { setSearch(e.target.value); setPage(1); }}
-                    onKeyDown={e => e.key === "Enter" && fetchOpps()}
-                    style={{ paddingLeft: "2rem" }} />
-                </div>
-              </div>
-
               {/* Type */}
               <div style={{ flex: "1 1 130px" }}>
                 <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "var(--text-2)", marginBottom: 5 }}>Type</label>
