@@ -342,3 +342,16 @@ async def change_password(
     user.hashed_password = hash_password(body.new_password)
     await session.commit()
     return {"message": "Password changed successfully."}
+
+
+@router.delete("/me")
+async def delete_account(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if current_user.role == "admin":
+        raise HTTPException(status_code=403, detail="Admin accounts cannot be self-deleted.")
+    user = await session.get(User, current_user.id)
+    await session.delete(user)
+    await session.commit()
+    return {"message": "Account deleted successfully."}

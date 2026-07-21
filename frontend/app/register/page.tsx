@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { sendOtp, register, updateManualProfile } from "@/lib/api";
+import { sendOtp, register, updateManualProfile, uploadCV } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useRef } from "react";
 import {
   Mail, Lock, User, Loader2, ShieldCheck, RefreshCw, Briefcase, ChevronLeft,
-  Plus, X, GraduationCap, Layers,
+  Plus, X, GraduationCap, Layers, Upload, FileText, Sparkles,
 } from "lucide-react";
 
 type Step = "details" | "otp" | "profile";
@@ -30,6 +31,9 @@ export default function RegisterPage() {
   const [edu, setEdu] = useState({ degree: "", institution: "", year: "" });
   const [projects, setProjects] = useState<{ name: string; description: string }[]>([]);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingCV, setUploadingCV] = useState(false);
+  const [cvParsed, setCvParsed] = useState(false);
+  const cvRef = useRef<HTMLInputElement>(null);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +94,32 @@ export default function RegisterPage() {
 
   const removeProject = (i: number) =>
     setProjects(p => p.filter((_, idx) => idx !== i));
+
+  const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0]) return;
+    setUploadingCV(true);
+    const toastId = toast.loading("AI is parsing your CV…");
+    try {
+      const { data } = await uploadCV(e.target.files[0]);
+      const cv = data.parsed_cv;
+      if (cv) {
+        setSkills((cv.skills as string[]) || []);
+        setEdu({
+          degree: cv.education?.degree || "",
+          institution: cv.education?.institution || "",
+          year: cv.education?.year || "",
+        });
+        setProjects((cv.projects as { name: string; description: string }[]) || []);
+        setCvParsed(true);
+      }
+      toast.success("CV parsed — fields auto-filled!", { id: toastId });
+    } catch (err: unknown) {
+      toast.error((err as any)?.response?.data?.detail || "CV parsing failed", { id: toastId });
+    } finally {
+      setUploadingCV(false);
+      if (e.target) e.target.value = "";
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -231,6 +261,44 @@ export default function RegisterPage() {
           {step === "profile" && (
             <motion.div key="profile" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
               style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+
+              {/* CV Upload shortcut */}
+              <div style={{ background: cvParsed ? "var(--success-muted, #ecfdf5)" : "var(--surface-2)", border: `1px solid ${cvParsed ? "#d1fae5" : "var(--border)"}`, borderRadius: "var(--radius-sm)", padding: "1rem" }}>
+                {cvParsed ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <FileText size={16} style={{ color: "var(--success, #16a34a)", flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--success, #16a34a)", margin: 0 }}>CV parsed — fields auto-filled</p>
+                      <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "2px 0 0" }}>Review the fields below and save.</p>
+                    </div>
+                    <button type="button" onClick={() => cvRef.current?.click()} disabled={uploadingCV}
+                      style={{ fontSize: "0.75rem", color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
+                      Replace
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Sparkles size={16} style={{ color: "var(--primary)", flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-1)", margin: 0 }}>Have a CV? Upload it to auto-fill everything</p>
+                      <p style={{ fontSize: "0.75rem", color: "var(--text-3)", margin: "2px 0 0" }}>AI parses your skills, education, and projects instantly.</p>
+                    </div>
+                    <button type="button" onClick={() => cvRef.current?.click()} disabled={uploadingCV}
+                      className="btn btn-outline btn-sm"
+                      style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                      {uploadingCV ? <Loader2 size={13} className="spinner" /> : <Upload size={13} />}
+                      {uploadingCV ? "Parsing…" : "Upload CV"}
+                    </button>
+                  </div>
+                )}
+                <input type="file" hidden ref={cvRef} accept="application/pdf" onChange={handleCVUpload} />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+                <span style={{ fontSize: "0.75rem", color: "var(--text-3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>or fill manually</span>
+                <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+              </div>
 
               {/* Skills */}
               <div>

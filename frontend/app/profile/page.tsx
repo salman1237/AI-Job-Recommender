@@ -1,13 +1,13 @@
 "use client";
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { uploadAvatar, uploadCV, updateManualProfile, changePassword } from "@/lib/api";
+import { uploadAvatar, uploadCV, updateManualProfile, changePassword, deleteAccount } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import toast from "react-hot-toast";
 import {
   User, Upload, FileText, Loader2, Camera, Sparkles,
-  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase,
+  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase, Trash2,
 } from "lucide-react";
 
 const CV_STEPS: LoadingStep[] = [
@@ -30,7 +30,7 @@ type Project = { name: string; description: string };
 type Experience = { title: string; company: string; duration: string; description: string };
 
 export default function ProfilePage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCV, setUploadingCV] = useState(false);
   const avatarRef = useRef<HTMLInputElement>(null);
@@ -50,6 +50,11 @@ export default function ProfilePage() {
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [changingPw, setChangingPw] = useState(false);
+
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const cv = user?.parsed_cv as Record<string, any> | null;
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -149,6 +154,19 @@ export default function ProfilePage() {
   const removeProject = (i: number) => {
     setLocalProjects(p => p.filter((_, idx) => idx !== i));
     setProfileEdited(true);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== "DELETE") return;
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+      localStorage.removeItem("token");
+      window.location.href = "/";
+    } catch (err: unknown) {
+      toast.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to delete account.");
+      setDeletingAccount(false);
+    }
   };
 
   const handleChangePw = async () => {
@@ -465,6 +483,62 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* ── Danger Zone Card ── */}
+        {user.role !== "admin" && (
+          <div className="card" style={{ overflow: "hidden", marginTop: "1.25rem", borderColor: "var(--error, #ef4444)" }}>
+            <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #fee2e2" }}>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 700, display: "flex", alignItems: "center", gap: 7, marginBottom: 3, color: "#dc2626" }}>
+                <Trash2 size={16} /> Danger Zone
+              </h2>
+              <p style={{ color: "var(--text-2)", fontSize: "0.8rem" }}>
+                Permanently delete your account and all data. You can re-register with the same email afterwards.
+              </p>
+            </div>
+            <div style={{ padding: "1.25rem 1.5rem" }}>
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: "var(--radius-sm)", border: "1px solid #dc2626", background: "transparent", color: "#dc2626", fontWeight: 600, fontSize: "0.875rem", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  <Trash2 size={14} /> Delete My Account
+                </button>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <p style={{ fontSize: "0.8125rem", color: "#dc2626", fontWeight: 600 }}>
+                    Type <strong>DELETE</strong> to confirm:
+                  </p>
+                  <input
+                    className="input"
+                    placeholder="Type DELETE to confirm"
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    style={{ fontSize: "0.875rem", borderColor: "#dc2626" }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      disabled={deletingAccount || deleteConfirmText !== "DELETE"}
+                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: "var(--radius-sm)", border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, fontSize: "0.875rem", cursor: deleteConfirmText === "DELETE" ? "pointer" : "not-allowed", opacity: deleteConfirmText === "DELETE" ? 1 : 0.5, fontFamily: "inherit" }}
+                    >
+                      {deletingAccount ? <Loader2 size={14} className="spinner" /> : <Trash2 size={14} />}
+                      {deletingAccount ? "Deleting…" : "Confirm Delete"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(""); }}
+                      style={{ padding: "8px 16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "transparent", color: "var(--text-2)", fontWeight: 600, fontSize: "0.875rem", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Change Password Card ── */}
         <div className="card" style={{ overflow: "hidden", marginTop: "1.25rem" }}>

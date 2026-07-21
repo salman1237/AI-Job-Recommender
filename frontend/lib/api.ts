@@ -71,6 +71,8 @@ export const updateManualProfile = (data: {
 export const changePassword = (current_password: string, new_password: string) =>
   api.put("/users/me/password", { current_password, new_password });
 
+export const deleteAccount = () => api.delete("/users/me");
+
 // ── Opportunities ──────────────────────────────────────────────────────
 export const getRecommended = (refresh = false) =>
   api.get("/opportunities/recommended", { params: { top_n: 30, refresh } });
