@@ -98,6 +98,7 @@ export default function RegisterPage() {
       await updateManualProfile({
         skills,
         education: edu.degree || edu.institution ? { degree: edu.degree, institution: edu.institution, year: edu.year } : null,
+        experience: [],
         achievements: [],
         projects: projects.filter(p => p.name.trim()),
       });

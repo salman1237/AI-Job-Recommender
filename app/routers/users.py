@@ -124,6 +124,20 @@ RESUME TEXT:
                 "required": ["degree", "institution", "year"],
                 "additionalProperties": False,
             },
+            "experience": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title":        {"type": "string"},
+                        "company":      {"type": "string"},
+                        "duration":     {"type": "string"},
+                        "description":  {"type": "string"},
+                    },
+                    "required": ["title", "company", "duration", "description"],
+                    "additionalProperties": False,
+                },
+            },
             "achievements": {"type": "array", "items": {"type": "string"}},
             "projects": {
                 "type": "array",
@@ -139,7 +153,7 @@ RESUME TEXT:
             },
             "job_keywords": {"type": "array", "items": {"type": "string"}},
         },
-        "required": ["skills", "education", "achievements", "projects", "job_keywords"],
+        "required": ["skills", "education", "experience", "achievements", "projects", "job_keywords"],
         "additionalProperties": False,
     }
 
@@ -157,8 +171,9 @@ RESUME TEXT:
                         {
                             "role": "system",
                             "content": (
-                                "You are a CV parser. Extract skills, education, achievements, "
+                                "You are a CV parser. Extract skills, education, work experience, achievements, "
                                 "projects, and job keywords from the resume. "
+                                "For experience, extract each role as title, company, duration, and a brief description of responsibilities. "
                                 "job_keywords should be broad, short, searchable terms: role titles WITHOUT seniority "
                                 "qualifiers (write 'Software Engineer' not 'Software Engineer Intern'), "
                                 "technologies, frameworks, and domains the candidate works with. "
@@ -197,6 +212,7 @@ RESUME TEXT:
 class ManualProfileIn(BaseModel):
     skills: list[str] = []
     education: dict | None = None
+    experience: list[dict] = []
     achievements: list[str] = []
     projects: list[dict] = []
 
@@ -218,6 +234,12 @@ async def update_manual_profile(
         lines.append(
             f"Education: {edu.get('degree', '')} at {edu.get('institution', '')} ({edu.get('year', '')})"
         )
+    for exp in body.experience:
+        title = exp.get("title", "")
+        company = exp.get("company", "")
+        duration = exp.get("duration", "")
+        desc = exp.get("description", "")
+        lines.append(f"Experience: {title} at {company} ({duration}) — {desc}")
     if body.achievements:
         lines.append(f"Achievements: {'; '.join(body.achievements)}")
     for p in body.projects:
@@ -288,6 +310,7 @@ async def update_manual_profile(
     updated_cv = {
         "skills": body.skills,
         "education": education,
+        "experience": body.experience,
         "achievements": body.achievements,
         "projects": body.projects,
         "job_keywords": job_keywords,

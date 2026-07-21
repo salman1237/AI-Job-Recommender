@@ -63,6 +63,7 @@ export const uploadCV = (file: File) => {
 export const updateManualProfile = (data: {
   skills: string[];
   education: { degree: string; institution: string; year: string } | null;
+  experience: { title: string; company: string; duration: string; description: string }[];
   achievements: string[];
   projects: { name: string; description: string }[];
 }) => api.put("/users/me/manual-profile", data);

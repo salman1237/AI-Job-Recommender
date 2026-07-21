@@ -7,7 +7,7 @@ import AILoadingState, { LoadingStep } from "@/components/AILoadingState";
 import toast from "react-hot-toast";
 import {
   User, Upload, FileText, Loader2, Camera, Sparkles,
-  Plus, X, GraduationCap, Layers, Save, Pencil, Lock,
+  Plus, X, GraduationCap, Layers, Save, Pencil, Lock, Briefcase,
 } from "lucide-react";
 
 const CV_STEPS: LoadingStep[] = [
@@ -27,6 +27,7 @@ const CV_TIPS = [
 
 type Edu = { degree: string; institution: string; year: string };
 type Project = { name: string; description: string };
+type Experience = { title: string; company: string; duration: string; description: string };
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -39,6 +40,7 @@ export default function ProfilePage() {
   const [localSkills, setLocalSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [localEdu, setLocalEdu] = useState<Edu>({ degree: "", institution: "", year: "" });
+  const [localExperience, setLocalExperience] = useState<Experience[]>([]);
   const [localProjects, setLocalProjects] = useState<Project[]>([]);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileEdited, setProfileEdited] = useState(false);
@@ -61,10 +63,12 @@ export default function ProfilePage() {
         institution: cv.education?.institution || "",
         year: cv.education?.year || "",
       });
+      setLocalExperience((cv.experience as Experience[]) || []);
       setLocalProjects((cv.projects as Project[]) || []);
     } else {
       setLocalSkills([]);
       setLocalEdu({ degree: "", institution: "", year: "" });
+      setLocalExperience([]);
       setLocalProjects([]);
     }
     setProfileEdited(false);
@@ -119,6 +123,20 @@ export default function ProfilePage() {
     setProfileEdited(true);
   };
 
+  // Experience helpers
+  const addExperience = () => {
+    setLocalExperience(e => [...e, { title: "", company: "", duration: "", description: "" }]);
+    setProfileEdited(true);
+  };
+  const updateExperience = (i: number, field: keyof Experience, val: string) => {
+    setLocalExperience(e => e.map((x, idx) => idx === i ? { ...x, [field]: val } : x));
+    setProfileEdited(true);
+  };
+  const removeExperience = (i: number) => {
+    setLocalExperience(e => e.filter((_, idx) => idx !== i));
+    setProfileEdited(true);
+  };
+
   // Project helpers
   const addProject = () => {
     setLocalProjects(p => [...p, { name: "", description: "" }]);
@@ -158,6 +176,7 @@ export default function ProfilePage() {
         education: localEdu.degree || localEdu.institution
           ? { degree: localEdu.degree, institution: localEdu.institution, year: localEdu.year }
           : null,
+        experience: localExperience.filter(e => e.title.trim() || e.company.trim()),
         achievements: (cv?.achievements as string[]) || [],
         projects: localProjects.filter(p => p.name.trim()),
       });
@@ -321,6 +340,52 @@ export default function ProfilePage() {
                     onChange={e => { setLocalEdu(d => ({ ...d, year: e.target.value })); setProfileEdited(true); }}
                     style={{ width: 80, fontSize: "0.875rem" }} />
                 </div>
+              </div>
+            </div>
+
+            {/* Experience */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.625rem" }}>
+                <label style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-1)", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Briefcase size={14} style={{ color: "var(--primary)" }} /> Work Experience
+                </label>
+                <button type="button" onClick={addExperience} className="btn btn-outline btn-sm" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Plus size={13} /> Add Role
+                </button>
+              </div>
+
+              {localExperience.length === 0 && (
+                <p style={{ fontSize: "0.8rem", color: "var(--text-3)", fontStyle: "italic" }}>
+                  No experience yet. Click "Add Role" to include your work history.
+                </p>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {localExperience.map((exp, i) => (
+                  <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "0.875rem", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input className="input" placeholder="Job title" value={exp.title}
+                        onChange={e => updateExperience(i, "title", e.target.value)}
+                        style={{ flex: 1, fontSize: "0.875rem", fontWeight: 600 }} />
+                      <button type="button" onClick={() => removeExperience(i)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", display: "flex", padding: 4 }}>
+                        <X size={15} />
+                      </button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+                      <input className="input" placeholder="Company / Organization" value={exp.company}
+                        onChange={e => updateExperience(i, "company", e.target.value)}
+                        style={{ fontSize: "0.875rem" }} />
+                      <input className="input" placeholder="Duration" value={exp.duration}
+                        onChange={e => updateExperience(i, "duration", e.target.value)}
+                        style={{ width: 130, fontSize: "0.875rem" }} />
+                    </div>
+                    <textarea className="input" placeholder="Responsibilities and achievements…"
+                      value={exp.description}
+                      onChange={e => updateExperience(i, "description", e.target.value)}
+                      rows={2} style={{ fontSize: "0.8125rem", resize: "vertical" }} />
+                  </div>
+                ))}
               </div>
             </div>
 
