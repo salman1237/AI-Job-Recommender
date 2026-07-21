@@ -138,6 +138,263 @@ async def send_otp_email(to_email: str, otp: str):
     )
 
 
+async def send_welcome_email(to_email: str, name: str):
+    """Send a welcome email with the full platform guide after successful registration."""
+    display_name = name or to_email.split("@")[0]
+    plain = f"""Welcome to OpportunityAI, {display_name}!
+
+Your account is ready. Here's how to get the most out of the platform:
+
+━━━ STEP 1 — BUILD YOUR PROFILE ━━━
+Option A: Upload your CV (PDF) on the Profile page.
+  AI will automatically extract your skills, education, projects and generate match keywords.
+Option B: Manually enter your skills, education and projects on the Profile page, then click
+  "Save & Re-rank with AI" — keywords are generated the same way.
+Tip: A detailed 1–2 page CV gives the most accurate keyword extraction.
+
+━━━ STEP 2 — MY MATCHES (FOR YOU) ━━━
+Your personalised feed shows every active opportunity ranked by AI match score.
+  • Score 80%+ → Strong fit — apply with confidence
+  • Score 50–79% → Good fit — worth reviewing
+  • Score <50% — usually filtered out by default
+Use the "Refresh" button after updating your profile to re-run AI ranking with the latest data.
+Type pills (Job, Scholarship, Fellowship, Grant, Internship) let you narrow by category.
+
+━━━ STEP 3 — BROWSE ALL ━━━
+See every active opportunity regardless of your profile.
+Filter by type, location, keyword, deadline. Sort any column.
+On mobile the view switches to cards automatically.
+
+━━━ EMAIL ALERTS ━━━
+Daily Digest: every morning you receive your Top 20 AI-matched opportunities (+ Excel attachment).
+Deadline Alerts: 48-hour warnings for high-match opportunities about to close.
+
+━━━ TIPS ━━━
+1. Keep your CV updated — re-upload whenever you add new experience.
+2. After editing skills or projects, always hit "Save & Re-rank with AI".
+3. Check deadlines directly on opportunity cards — act on high-scoring ones first.
+4. Use Browse to discover opportunities outside your current keyword set.
+5. Your match score is based on keyword relevance — the more specific your skills, the better.
+
+Visit the platform: https://opportunityai.com
+Questions? Reply to this email.
+
+– The OpportunityAI Team
+"""
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Welcome to OpportunityAI</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<div style="max-width:620px;margin:40px auto;border-radius:14px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.10);">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);padding:40px 40px 32px;text-align:center;">
+    <div style="display:inline-block;width:52px;height:52px;background:rgba(255,255,255,0.18);border-radius:14px;line-height:52px;font-size:26px;margin-bottom:16px;">🎯</div>
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">Welcome to OpportunityAI!</h1>
+    <p style="margin:10px 0 0;color:rgba(255,255,255,0.82);font-size:14px;">Your AI-powered career discovery platform is ready</p>
+  </div>
+
+  <!-- Greeting -->
+  <div style="background:#fff;padding:32px 40px 24px;">
+    <p style="margin:0;font-size:16px;color:#0f172a;font-weight:700;">Hi {display_name} 👋</p>
+    <p style="margin:10px 0 0;font-size:14px;color:#475569;line-height:1.7;">
+      Your account is set up and ready to go. This email is your complete guide — bookmark it or read it now to get the best out of the platform.
+    </p>
+  </div>
+
+  <!-- Divider -->
+  <div style="background:#fff;padding:0 40px;"><div style="border-top:1px solid #e2e8f0;"></div></div>
+
+  <!-- Step 1 -->
+  <div style="background:#fff;padding:28px 40px 8px;">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:36px;vertical-align:top;padding-top:2px;">
+          <div style="width:28px;height:28px;background:#eef2ff;border-radius:8px;text-align:center;line-height:28px;font-size:13px;font-weight:800;color:#4f46e5;">1</div>
+        </td>
+        <td style="padding-left:14px;">
+          <h2 style="margin:0 0 8px;font-size:16px;font-weight:800;color:#0f172a;">Build Your Profile</h2>
+          <p style="margin:0 0 12px;font-size:14px;color:#475569;line-height:1.65;">
+            The AI needs to know you before it can match you. You have two options:
+          </p>
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="width:50%;vertical-align:top;padding-right:8px;">
+                <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;">
+                  <div style="font-size:12px;font-weight:800;color:#4f46e5;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">📄 Upload CV (recommended)</div>
+                  <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;">
+                    Upload a PDF on your <strong>Profile page</strong>. AI automatically extracts skills, education, projects and generates match keywords.
+                  </p>
+                </div>
+              </td>
+              <td style="width:50%;vertical-align:top;padding-left:8px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;">
+                  <div style="font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">✍️ Enter Manually</div>
+                  <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;">
+                    Type in your skills, education and projects directly. Hit <strong>"Save &amp; Re-rank with AI"</strong> and keywords are generated automatically.
+                  </p>
+                </div>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:12px 0 0;font-size:13px;color:#64748b;background:#f8fafc;border-left:3px solid #4f46e5;padding:10px 12px;border-radius:0 6px 6px 0;">
+            💡 <strong>Tip:</strong> A focused 1–2 page CV gives the most accurate keyword extraction. Include project descriptions with tech stack details.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Divider -->
+  <div style="background:#fff;padding:20px 40px 0;"><div style="border-top:1px solid #e2e8f0;"></div></div>
+
+  <!-- Step 2 -->
+  <div style="background:#fff;padding:28px 40px 8px;">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:36px;vertical-align:top;padding-top:2px;">
+          <div style="width:28px;height:28px;background:#eef2ff;border-radius:8px;text-align:center;line-height:28px;font-size:13px;font-weight:800;color:#4f46e5;">2</div>
+        </td>
+        <td style="padding-left:14px;">
+          <h2 style="margin:0 0 8px;font-size:16px;font-weight:800;color:#0f172a;">My Matches — Your AI-Ranked Feed</h2>
+          <p style="margin:0 0 14px;font-size:14px;color:#475569;line-height:1.65;">
+            Go to <strong>My Matches</strong> to see every active opportunity ranked by how well it fits your profile.
+          </p>
+          <!-- Score guide -->
+          <table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+            <tr>
+              <td style="width:33%;padding-right:6px;">
+                <div style="background:#dcfce7;border-radius:8px;padding:10px 12px;text-align:center;">
+                  <div style="font-size:18px;font-weight:900;color:#166534;">80%+</div>
+                  <div style="font-size:12px;color:#166534;font-weight:600;margin-top:2px;">Strong fit</div>
+                  <div style="font-size:11px;color:#4ade80;margin-top:2px;">Apply now</div>
+                </div>
+              </td>
+              <td style="width:33%;padding:0 3px;">
+                <div style="background:#fef3c7;border-radius:8px;padding:10px 12px;text-align:center;">
+                  <div style="font-size:18px;font-weight:900;color:#92400e;">50–79%</div>
+                  <div style="font-size:12px;color:#92400e;font-weight:600;margin-top:2px;">Good fit</div>
+                  <div style="font-size:11px;color:#f59e0b;margin-top:2px;">Worth reviewing</div>
+                </div>
+              </td>
+              <td style="width:33%;padding-left:6px;">
+                <div style="background:#fee2e2;border-radius:8px;padding:10px 12px;text-align:center;">
+                  <div style="font-size:18px;font-weight:900;color:#991b1b;">&lt;50%</div>
+                  <div style="font-size:12px;color:#991b1b;font-weight:600;margin-top:2px;">Weak fit</div>
+                  <div style="font-size:11px;color:#f87171;margin-top:2px;">Filtered by default</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+          <ul style="margin:0;padding-left:18px;font-size:13px;color:#475569;line-height:2;">
+            <li>Filter by <strong>type pill</strong> (Job / Scholarship / Fellowship / Grant / Internship)</li>
+            <li>Toggle <strong>"Hide expired"</strong> to remove past-deadline entries</li>
+            <li>Click <strong>"Refresh"</strong> to re-run AI ranking with the latest opportunities</li>
+            <li>Cached results load instantly — the Refresh button fetches live data</li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Divider -->
+  <div style="background:#fff;padding:20px 40px 0;"><div style="border-top:1px solid #e2e8f0;"></div></div>
+
+  <!-- Step 3 -->
+  <div style="background:#fff;padding:28px 40px 8px;">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:36px;vertical-align:top;padding-top:2px;">
+          <div style="width:28px;height:28px;background:#eef2ff;border-radius:8px;text-align:center;line-height:28px;font-size:13px;font-weight:800;color:#4f46e5;">3</div>
+        </td>
+        <td style="padding-left:14px;">
+          <h2 style="margin:0 0 8px;font-size:16px;font-weight:800;color:#0f172a;">Browse All Opportunities</h2>
+          <p style="margin:0;font-size:14px;color:#475569;line-height:1.65;">
+            The <strong>Browse</strong> page shows every active opportunity regardless of your profile. Use it to explore and discover:
+          </p>
+          <ul style="margin:10px 0 0;padding-left:18px;font-size:13px;color:#475569;line-height:2;">
+            <li><strong>Filter</strong> by type, location, organization, or keyword</li>
+            <li><strong>Sort</strong> any column — deadline, posted date, title, organization</li>
+            <li>Desktop shows a sortable table; mobile shows card layout automatically</li>
+            <li>Use Browse to find opportunities outside your current keyword set</li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Divider -->
+  <div style="background:#fff;padding:20px 40px 0;"><div style="border-top:1px solid #e2e8f0;"></div></div>
+
+  <!-- Email Alerts -->
+  <div style="background:#fff;padding:28px 40px 8px;">
+    <h2 style="margin:0 0 12px;font-size:16px;font-weight:800;color:#0f172a;">📬 Email Alerts — Never Miss an Opportunity</h2>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:50%;vertical-align:top;padding-right:8px;">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;">
+            <div style="font-size:12px;font-weight:800;color:#4f46e5;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🌅 Daily Digest</div>
+            <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;">
+              Every morning: your <strong>Top 20 AI-matched opportunities</strong> with scores, plus an Excel file with the full details.
+            </p>
+          </div>
+        </td>
+        <td style="width:50%;vertical-align:top;padding-left:8px;">
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;">
+            <div style="font-size:12px;font-weight:800;color:#dc2626;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">⚠️ Deadline Alerts</div>
+            <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;">
+              Get a <strong>48-hour warning</strong> when a high-match opportunity (50%+) is about to close.
+            </p>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Divider -->
+  <div style="background:#fff;padding:20px 40px 0;"><div style="border-top:1px solid #e2e8f0;"></div></div>
+
+  <!-- Tips -->
+  <div style="background:#fff;padding:28px 40px 24px;">
+    <h2 style="margin:0 0 14px;font-size:16px;font-weight:800;color:#0f172a;">🚀 Tips for the Best Results</h2>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr><td style="padding:6px 0;vertical-align:top;width:22px;font-size:15px;">✅</td><td style="padding:6px 0 6px 8px;font-size:13px;color:#475569;line-height:1.6;"><strong>Keep your CV updated.</strong> Re-upload whenever you finish a project, course, or role — AI re-parses automatically.</td></tr>
+      <tr><td style="padding:6px 0;vertical-align:top;font-size:15px;">✅</td><td style="padding:6px 0 6px 8px;font-size:13px;color:#475569;line-height:1.6;"><strong>After editing skills or projects, always save.</strong> "Save &amp; Re-rank with AI" regenerates your match keywords so the ranking stays accurate.</td></tr>
+      <tr><td style="padding:6px 0;vertical-align:top;font-size:15px;">✅</td><td style="padding:6px 0 6px 8px;font-size:13px;color:#475569;line-height:1.6;"><strong>Be specific with skills.</strong> "Python" and "machine learning" match more opportunities than broad terms like "programming".</td></tr>
+      <tr><td style="padding:6px 0;vertical-align:top;font-size:15px;">✅</td><td style="padding:6px 0 6px 8px;font-size:13px;color:#475569;line-height:1.6;"><strong>Include project descriptions.</strong> AI matches on context — a project description mentioning NLP, React, or AWS extends your keyword coverage significantly.</td></tr>
+      <tr><td style="padding:6px 0;vertical-align:top;font-size:15px;">✅</td><td style="padding:6px 0 6px 8px;font-size:13px;color:#475569;line-height:1.6;"><strong>Act on high-score items first.</strong> Sort by score and apply to 80%+ matches before checking lower-scored ones.</td></tr>
+      <tr><td style="padding:6px 0;vertical-align:top;font-size:15px;">✅</td><td style="padding:6px 0 6px 8px;font-size:13px;color:#475569;line-height:1.6;"><strong>Use Browse when you don't match.</strong> If your profile is new and matches are low, Browse lets you see everything and apply directly.</td></tr>
+    </table>
+  </div>
+
+  <!-- CTA -->
+  <div style="background:#4f46e5;padding:32px 40px;text-align:center;">
+    <h2 style="margin:0 0 10px;color:#fff;font-size:18px;font-weight:800;">Ready to find your next opportunity?</h2>
+    <p style="margin:0 0 22px;color:rgba(255,255,255,0.8);font-size:14px;">Start by uploading your CV or filling in your profile.</p>
+    <a href="https://opportunityai.com/profile" style="display:inline-block;background:#fff;color:#4f46e5;font-weight:800;font-size:14px;padding:12px 32px;border-radius:8px;text-decoration:none;letter-spacing:-.01em;">Go to My Profile →</a>
+  </div>
+
+  <!-- Footer -->
+  <div style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.7;">
+      OpportunityAI &bull; AI-Powered Career Discovery<br>
+      You received this because you just created an account. Questions? Reply to this email.
+    </p>
+  </div>
+
+</div>
+</body>
+</html>"""
+    await send_email_with_attachment(
+        to_email=to_email,
+        subject=f"Welcome to OpportunityAI, {display_name}! Here's your complete guide",
+        text_content=plain,
+        html_content=html,
+    )
+
+
 async def send_password_reset_email(to_email: str, token: str):
     """Send a 6-digit password reset code."""
     plain = (

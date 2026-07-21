@@ -2,7 +2,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select, update
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.models import OTPVerification, PasswordResetToken, User
 from app.security import create_access_token, hash_password, verify_password
-from app.services.email_service import send_otp_email, send_password_reset_email
+from app.services.email_service import send_otp_email, send_password_reset_email, send_welcome_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,7 +46,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/send-otp", status_code=status.HTTP_200_OK)
-async def send_otp(body: SendOtpRequest, session: AsyncSession = Depends(get_session)):
+async def send_otp(body: SendOtpRequest, background_tasks: BackgroundTasks, session: AsyncSession = Depends(get_session)):
     """Generate a 6-digit OTP and email it. Rejects already-registered addresses."""
     existing = await session.scalar(select(User).where(User.email == body.email))
     if existing:
@@ -67,12 +67,12 @@ async def send_otp(body: SendOtpRequest, session: AsyncSession = Depends(get_ses
     ))
     await session.commit()
 
-    await send_otp_email(body.email, otp)
+    background_tasks.add_task(send_otp_email, body.email, otp)
     return {"message": "OTP sent. Check your inbox."}
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, session: AsyncSession = Depends(get_session)):
+async def register(body: RegisterRequest, background_tasks: BackgroundTasks, session: AsyncSession = Depends(get_session)):
     """Create an account. Requires a valid OTP that was emailed to the address."""
     existing = await session.scalar(select(User).where(User.email == body.email))
     if existing:
@@ -102,11 +102,12 @@ async def register(body: RegisterRequest, session: AsyncSession = Depends(get_se
     await session.refresh(user)
 
     token = create_access_token(user.id, user.email, user.role)
+    background_tasks.add_task(send_welcome_email, user.email, user.full_name or "")
     return TokenResponse(access_token=token)
 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
-async def forgot_password(body: ForgotPasswordRequest, session: AsyncSession = Depends(get_session)):
+async def forgot_password(body: ForgotPasswordRequest, background_tasks: BackgroundTasks, session: AsyncSession = Depends(get_session)):
     """Send a 6-digit reset code to the email. Always returns success to avoid email enumeration."""
     user = await session.scalar(select(User).where(User.email == body.email))
     if user:
@@ -122,7 +123,7 @@ async def forgot_password(body: ForgotPasswordRequest, session: AsyncSession = D
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_TTL_MINUTES),
         ))
         await session.commit()
-        await send_password_reset_email(body.email, token)
+        background_tasks.add_task(send_password_reset_email, body.email, token)
     return {"message": "If that email is registered, a reset code has been sent."}
 
 
