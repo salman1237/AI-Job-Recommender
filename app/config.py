@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     mail_password: str = ""
     mail_from_address: str = ""
     mail_from_name: str = "Opportunity Finder"
-    app_url: str = "https://opportunityfinder.app"
+    app_url: str = "https://ai-job-recommender-flame.vercel.app"
     api_url: str = "http://localhost:8000"
 
     # Descriptive UA for outbound requests (Phase 8 — be polite to sources).
