@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { sendOtp, register, updateManualProfile, uploadCV } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useRef } from "react";
+import Image from "next/image";
 import {
   Mail, Lock, User, Loader2, ShieldCheck, RefreshCw, Briefcase, ChevronLeft,
   Plus, X, GraduationCap, Layers, Upload, FileText, Sparkles,
@@ -174,16 +175,19 @@ export default function RegisterPage() {
       >
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: "var(--primary-muted)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 1rem",
-          }}>
-            {step === "otp" ? <ShieldCheck size={24} style={{ color: "var(--primary)" }} />
-              : step === "profile" ? <Layers size={24} style={{ color: "var(--primary)" }} />
-                : <Briefcase size={24} style={{ color: "var(--primary)" }} />}
-          </div>
+          {step === "details" ? (
+            <Image src="/logo.png" alt="Opportunity Finder" width={52} height={52} style={{ objectFit: "contain", borderRadius: 12, margin: "0 auto 1rem", display: "block" }} priority />
+          ) : (
+            <div style={{
+              width: 48, height: 48, borderRadius: 12,
+              background: "var(--primary-muted)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 1rem",
+            }}>
+              {step === "otp" ? <ShieldCheck size={24} style={{ color: "var(--primary)" }} />
+                : <Layers size={24} style={{ color: "var(--primary)" }} />}
+            </div>
+          )}
           <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-1)", letterSpacing: "-0.02em" }}>
             {step === "otp" ? "Verify your email"
               : step === "profile" ? "Set up your profile"

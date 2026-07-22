@@ -6,7 +6,8 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { login } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Mail, Lock, Eye, EyeOff, Loader2, Briefcase } from "lucide-react";
+import Image from "next/image";
+import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -42,14 +43,7 @@ export default function LoginPage() {
       >
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: "var(--primary-muted)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 1rem",
-          }}>
-            <Briefcase size={24} style={{ color: "var(--primary)" }} />
-          </div>
+          <Image src="/logo.png" alt="Opportunity Finder" width={52} height={52} style={{ objectFit: "contain", borderRadius: 12, margin: "0 auto 1rem", display: "block" }} priority />
           <h1 style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--text-1)", letterSpacing: "-0.02em" }}>
             Sign in
           </h1>

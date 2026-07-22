@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getLandingContent } from "@/lib/api";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Briefcase, Sparkles, Search, Mail, ArrowRight, Zap, Globe,
   GraduationCap, Trophy, Handshake, Star, Shield, Bell, Rocket,
@@ -92,9 +93,7 @@ export default function LandingPage() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 32, height: 32, background: "var(--primary)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Briefcase size={17} color="#fff" />
-          </div>
+          <Image src="/logo.png" alt="Opportunity Finder" width={32} height={32} style={{ objectFit: "contain", borderRadius: 6 }} priority />
           <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--text-1)", letterSpacing: "-0.02em" }}>Opportunity Finder</span>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
