@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+.claude
+.fastapicloud
+.env
+.env.*
+__pycache__/
+*.pyc
+frontend/
+db_export/
+DB_Backup.sql
+uploads/
+*.docx
+*.pdf
+*.jpg
+*.md
