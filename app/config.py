@@ -34,6 +34,12 @@ class Settings(BaseSettings):
         "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
+    # Campus365 sync
+    campus365_base_url: str = "https://betapi.campus365.app/api/v1"
+    campus365_email: str = ""
+    campus365_password: str = ""
+    campus365_institution_id: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

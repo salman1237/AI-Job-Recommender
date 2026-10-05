@@ -5,6 +5,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
 from app.ingest.runner import run_ingestion
+from app.services.campus365_service import run_campus365_sync
 from app.services.email_service import (
     run_daily_opportunity_digests,
     run_deadline_alerts,
@@ -66,9 +67,19 @@ def start_scheduler() -> None:
         coalesce=True,
     )
 
+    # 5. Campus365 sync (03:00 UTC — runs after the 02:07 ingest finishes)
+    scheduler.add_job(
+        run_campus365_sync,
+        trigger=CronTrigger(hour=3, minute=0, timezone="UTC"),
+        id="campus365_sync",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     scheduler.start()
     logger.info(
-        "Scheduler started — daily ingest at %02d:%02d UTC, daily emails at 00:00 UTC",
+        "Scheduler started — daily ingest at %02d:%02d UTC, daily emails at 00:00 UTC, campus365 sync at 03:00 UTC",
         settings.ingest_hour_utc,
         settings.ingest_minute_utc,
     )

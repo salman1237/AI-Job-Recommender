@@ -182,6 +182,26 @@ class SavedSearch(Base):
     user: Mapped["User"] = relationship("User", back_populates="saved_searches")
 
 
+class Campus365Sync(Base):
+    """Tracks which opportunities have been pushed to Campus365 and their current sync state."""
+    __tablename__ = "campus365_sync"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    opp_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("opportunities.id", ondelete="CASCADE"),
+                                        nullable=False, unique=True)
+    institution_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    campus365_uid: Mapped[str] = mapped_column(String(36), nullable=False)
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    c365_status: Mapped[str] = mapped_column(String(20), nullable=False, default="PUBLISHED")
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_c365_institution", "institution_id"),
+        Index("ix_c365_opp_id", "opp_id"),
+    )
+
+
 class SiteConfig(Base):
     """Generic key/value store for site-wide configuration (e.g. landing page content)."""
     __tablename__ = "site_config"
