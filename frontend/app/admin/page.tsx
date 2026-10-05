@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   triggerIngest, triggerEmails, getIngestionRuns,
   getAdminOpportunities, getOpportunityTypes, getStats, getEmailLogs,
+  getCampus365Logs, getCampus365Stats, triggerCampus365Sync,
   getLandingContent, updateLandingContent, resetLandingContent,
 } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -12,13 +13,15 @@ import { useRouter } from "next/navigation";
 import {
   Database, Play, RefreshCw, Loader2, Search, ChevronLeft, ChevronRight,
   ExternalLink, MapPin, Building, Calendar, Filter, BarChart2, Briefcase,
-  Mail, Users, X, TrendingUp, Layout, Plus, Trash2, RotateCcw, Save,
+  Mail, Users, X, TrendingUp, Layout, Plus, Trash2, RotateCcw, Save, Globe,
 } from "lucide-react";
 
 interface Run { id: number; source: string; status: string; started_at: string; fetched: number; created: number; updated: number; }
 interface Opp { id: number; title: string; type: string; organization: string | null; location: string | null; country: string | null; deadline: string | null; posted_at: string | null; url: string; is_active: boolean; source: string; }
 interface Stats { total: number; active: number; by_type: Record<string, number>; sources?: { source: string }[]; total_users?: number; }
 interface EmailLog { id: number; user_id: number; user_email: string; email_type: string; status: string; error_message: string | null; sent_at: string; }
+interface C365Log { id: number; institution_id: string; pushed: number; updated: number; expired: number; errors: number; total_mapped: number; status: string; error_detail: string | null; started_at: string; finished_at: string | null; }
+interface C365Stats { total_mapped: number; published: number; expired: number; last_run: C365Log | null; }
 
 type StatItem    = { value: string; label: string };
 type StepItem    = { num: string; title: string; desc: string };
@@ -87,7 +90,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export default function AdminDashboard() {
   const { user } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"overview" | "jobs" | "ingest" | "emails" | "landing">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "jobs" | "ingest" | "emails" | "campus365" | "landing">("overview");
 
   useEffect(() => {
     if (user && user.role !== "admin") router.push("/opportunities");
@@ -135,6 +138,31 @@ export default function AdminDashboard() {
     try { await triggerEmails(); toast.success("Emails triggered in background!"); setTimeout(loadEmailLogs, 2500); }
     catch { toast.error("Failed to trigger emails"); }
     finally { setTriggeringEmails(false); }
+  };
+
+  // Campus365
+  const [c365Logs, setC365Logs] = useState<C365Log[]>([]);
+  const [c365Stats, setC365Stats] = useState<C365Stats | null>(null);
+  const [c365Loading, setC365Loading] = useState(false);
+  const [c365Triggering, setC365Triggering] = useState(false);
+
+  const loadC365 = useCallback(async () => {
+    setC365Loading(true);
+    try {
+      const [logsRes, statsRes] = await Promise.all([getCampus365Logs(), getCampus365Stats()]);
+      setC365Logs(logsRes.data);
+      setC365Stats(statsRes.data);
+    } catch { toast.error("Failed to load Campus365 data."); }
+    finally { setC365Loading(false); }
+  }, []);
+
+  useEffect(() => { if (activeTab === "campus365") loadC365(); }, [activeTab, loadC365]);
+
+  const handleC365Sync = async () => {
+    setC365Triggering(true);
+    try { await triggerCampus365Sync(); toast.success("Campus365 sync started!"); setTimeout(loadC365, 4000); }
+    catch { toast.error("Failed to trigger sync"); }
+    finally { setC365Triggering(false); }
   };
 
   // Opportunities
@@ -258,9 +286,10 @@ export default function AdminDashboard() {
   const tabs = [
     { id: "overview", label: "Overview",     icon: BarChart2 },
     { id: "jobs",     label: "Opportunities", icon: Briefcase },
-    { id: "ingest",   label: "Ingestion",    icon: Database },
-    { id: "emails",   label: "Email Logs",   icon: Mail },
-    { id: "landing",  label: "Landing Page", icon: Layout },
+    { id: "ingest",    label: "Ingestion",    icon: Database },
+    { id: "emails",    label: "Email Logs",   icon: Mail },
+    { id: "campus365", label: "Campus365",    icon: Globe },
+    { id: "landing",   label: "Landing Page", icon: Layout },
   ] as const;
 
   const SortTh = ({ label, col }: { label: string; col: string }) => {
@@ -512,6 +541,89 @@ export default function AdminDashboard() {
                         <td style={{ color: "var(--danger)", fontSize: "0.8rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.error_message || ""}>{log.error_message || "—"}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CAMPUS365 ── */}
+        {activeTab === "campus365" && (
+          <div>
+            {/* Action bar */}
+            <div className="card" style={{ padding: "1.25rem", marginBottom: "1.25rem", display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={loadC365} disabled={c365Loading} className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {c365Loading ? <Loader2 size={15} className="spinner" /> : <RefreshCw size={15} />} Refresh
+              </button>
+              <button onClick={handleC365Sync} disabled={c365Triggering} className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {c365Triggering ? <Loader2 size={15} className="spinner" /> : <Play size={15} />} Trigger Sync Now
+              </button>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-3)", marginLeft: "auto" }}>
+                Auto-runs daily at 03:00 UTC · Institution: Campus Connect
+              </span>
+            </div>
+
+            {/* Stats cards */}
+            {c365Stats && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
+                <StatCard label="Total Mapped" value={c365Stats.total_mapped} color="var(--primary)" icon={Globe} />
+                <StatCard label="Published" value={c365Stats.published} color="var(--success)" icon={TrendingUp} />
+                <StatCard label="Expired" value={c365Stats.expired} color="var(--text-3)" icon={Calendar} />
+                {c365Stats.last_run && <>
+                  <StatCard label="Last Pushed" value={c365Stats.last_run.pushed} color="var(--primary)" icon={Play} />
+                  <StatCard label="Last Updated" value={c365Stats.last_run.updated} color="var(--warning)" icon={RefreshCw} />
+                  <StatCard label="Last Expired" value={c365Stats.last_run.expired} color="var(--text-2)" icon={X} />
+                  <StatCard label="Last Errors" value={c365Stats.last_run.errors} color={c365Stats.last_run.errors > 0 ? "var(--danger)" : "var(--success)"} icon={Database} />
+                </>}
+              </div>
+            )}
+
+            {/* Sync log table */}
+            <div className="card" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
+                <h2 style={{ fontSize: "0.95rem", fontWeight: 700 }}>Sync Run History</h2>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      {["#", "Started At", "Duration", "Pushed", "Updated", "Expired", "Errors", "Total Mapped", "Status", "Error"].map(h => <th key={h}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {c365Logs.length === 0 ? (
+                      <tr><td colSpan={10} style={{ padding: "2rem", textAlign: "center", color: "var(--text-2)" }}>
+                        {c365Loading ? "Loading…" : "No sync runs yet. Trigger one above or wait for the 03:00 UTC job."}
+                      </td></tr>
+                    ) : c365Logs.map(log => {
+                      const dur = log.finished_at
+                        ? Math.round((new Date(log.finished_at).getTime() - new Date(log.started_at).getTime()) / 1000)
+                        : null;
+                      const statusColor = log.status === "success" ? { bg: "#ecfdf5", color: "#065f46" }
+                        : log.status === "partial" ? { bg: "#fffbeb", color: "#92400e" }
+                        : { bg: "#fef2f2", color: "#991b1b" };
+                      return (
+                        <tr key={log.id}>
+                          <td style={{ color: "var(--text-3)" }}>#{log.id}</td>
+                          <td style={{ color: "var(--text-2)", fontSize: "0.8rem", whiteSpace: "nowrap" }}>{new Date(log.started_at).toLocaleString()}</td>
+                          <td style={{ color: "var(--text-3)", fontSize: "0.8rem" }}>{dur != null ? `${dur}s` : "—"}</td>
+                          <td style={{ textAlign: "center", color: "var(--primary)", fontWeight: log.pushed > 0 ? 700 : 400 }}>{log.pushed}</td>
+                          <td style={{ textAlign: "center", color: "var(--warning)", fontWeight: log.updated > 0 ? 700 : 400 }}>{log.updated}</td>
+                          <td style={{ textAlign: "center", color: "var(--text-2)" }}>{log.expired}</td>
+                          <td style={{ textAlign: "center", color: log.errors > 0 ? "var(--danger)" : "var(--text-3)", fontWeight: log.errors > 0 ? 700 : 400 }}>{log.errors}</td>
+                          <td style={{ textAlign: "center", fontWeight: 600 }}>{log.total_mapped}</td>
+                          <td>
+                            <span style={{ padding: "2px 7px", borderRadius: 4, fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", background: statusColor.bg, color: statusColor.color }}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td style={{ color: "var(--danger)", fontSize: "0.78rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.error_detail || ""}>
+                            {log.error_detail || "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

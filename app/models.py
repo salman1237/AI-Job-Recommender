@@ -182,6 +182,23 @@ class SavedSearch(Base):
     user: Mapped["User"] = relationship("User", back_populates="saved_searches")
 
 
+class Campus365SyncLog(Base):
+    """One row per daily Campus365 sync run — summary counts."""
+    __tablename__ = "campus365_sync_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    institution_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    pushed: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[int] = mapped_column(Integer, default=0)
+    expired: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    total_mapped: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
+    error_detail: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Campus365Sync(Base):
     """Tracks which opportunities have been pushed to Campus365 and their current sync state."""
     __tablename__ = "campus365_sync"

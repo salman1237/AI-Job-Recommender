@@ -129,3 +129,6 @@ export const triggerEmails = () => api.post("/admin/trigger-emails");
 export const backfillWp = () => api.post("/admin/backfill-wp");
 export const getIngestionRuns = () => api.get("/admin/runs");
 export const getEmailLogs = () => api.get("/admin/email-logs");
+export const getCampus365Logs = (limit = 60) => api.get(`/admin/campus365-logs?limit=${limit}`);
+export const getCampus365Stats = () => api.get("/admin/campus365-stats");
+export const triggerCampus365Sync = () => api.post("/admin/campus365-sync");

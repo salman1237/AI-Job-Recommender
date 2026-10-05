@@ -14,7 +14,8 @@ from app.ingest.runner import run_ingestion
 from app.ingest.wordpress import _parse_deadline, _parse_organization, _parse_location
 from app.models import SiteConfig
 from app.routers.config import DEFAULT_LANDING
-from app.schemas import IngestResult, RunOut, EmailLogOut
+from app.schemas import Campus365SyncLogOut, IngestResult, RunOut, EmailLogOut
+from app.services.campus365_service import run_campus365_sync
 from app.services.email_service import run_daily_opportunity_digests, run_deadline_alerts, run_saved_search_alerts
 
 from app.dependencies import require_admin, require_admin_or_cron
@@ -220,6 +221,54 @@ async def list_email_logs(
         out.append(log_out)
 
     return out
+
+
+@router.get(
+    "/campus365-logs",
+    response_model=list[Campus365SyncLogOut],
+    dependencies=[Depends(require_admin)],
+)
+async def list_campus365_logs(
+    limit: int = 60,
+    session: AsyncSession = Depends(get_session),
+):
+    from app.models import Campus365SyncLog
+
+    stmt = select(Campus365SyncLog).order_by(Campus365SyncLog.id.desc()).limit(limit)
+    rows = (await session.scalars(stmt)).all()
+    return [Campus365SyncLogOut.model_validate(r) for r in rows]
+
+
+@router.get(
+    "/campus365-stats",
+    dependencies=[Depends(require_admin)],
+)
+async def campus365_stats(session: AsyncSession = Depends(get_session)):
+    from sqlalchemy import func
+    from app.models import Campus365Sync, Campus365SyncLog
+
+    total_mapped = (await session.execute(select(func.count()).select_from(Campus365Sync))).scalar_one()
+    published = (await session.execute(
+        select(func.count()).select_from(Campus365Sync).where(Campus365Sync.c365_status == "PUBLISHED")
+    )).scalar_one()
+    expired = (await session.execute(
+        select(func.count()).select_from(Campus365Sync).where(Campus365Sync.c365_status == "EXPIRED")
+    )).scalar_one()
+    last_log = (await session.execute(
+        select(Campus365SyncLog).order_by(Campus365SyncLog.id.desc()).limit(1)
+    )).scalar_one_or_none()
+    return {
+        "total_mapped": total_mapped,
+        "published": published,
+        "expired": expired,
+        "last_run": Campus365SyncLogOut.model_validate(last_log) if last_log else None,
+    }
+
+
+@router.post("/campus365-sync", dependencies=[Depends(require_admin_or_cron)])
+async def trigger_campus365_sync(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_campus365_sync)
+    return {"status": "started", "detail": "Campus365 sync started in the background."}
 
 
 @router.put("/landing", dependencies=[Depends(require_admin)])

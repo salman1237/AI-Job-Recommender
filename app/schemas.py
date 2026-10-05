@@ -110,6 +110,22 @@ class EmailLogOut(BaseModel):
     sent_at: datetime
 
 
+class Campus365SyncLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    institution_id: str
+    pushed: int
+    updated: int
+    expired: int
+    errors: int
+    total_mapped: int
+    status: str
+    error_detail: str | None = None
+    started_at: datetime
+    finished_at: datetime | None = None
+
+
 class SavedSearchCreate(BaseModel):
     name: str
     keywords: str | None = None
