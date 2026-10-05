@@ -11,8 +11,7 @@ import logging
 from datetime import date, datetime, timezone
 
 import httpx
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.campus365 import build, payload_hash
 from app.config import settings
@@ -21,7 +20,7 @@ from app.models import Campus365Sync, Opportunity
 
 logger = logging.getLogger("aggregator.campus365")
 
-BATCH = 50       # records per sync run for new pushes (keeps run time short)
+BATCH = 500      # max new records to push per sync run
 INST  = settings.campus365_institution_id
 
 
