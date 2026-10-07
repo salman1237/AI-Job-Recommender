@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     )
 
     # Campus365 sync
-    campus365_base_url: str = "https://betapi.campus365.app/api/v1"
+    campus365_base_url: str = "https://api.campus365.app/api/v1"
     campus365_email: str = ""
     campus365_password: str = ""
     campus365_institution_id: str = ""
